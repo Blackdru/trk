@@ -1,4 +1,8 @@
 {
   "name": "upi",
-  "displayName": "upi"
+  "displayName": "UPI Subscription Tracker",
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-3990640624622013~9037064259",
+    "ios_app_id": "ca-app-pub-3940256099942544~1458002511"
+  }
 }
