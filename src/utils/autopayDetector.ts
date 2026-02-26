@@ -47,11 +47,14 @@ function categorizeAutopay(transaction: ParsedTransaction): string {
   const merchantLower = transaction.merchantName.toLowerCase();
   const bodyLower = transaction.rawSms?.toLowerCase() || '';
 
-  // Special case: Google Play subscriptions
-  // These come through as "Google" with mandate/autopay keywords
-  if ((merchantLower.includes('google') || bodyLower.includes('google play')) && 
-      (bodyLower.includes('mandate') || bodyLower.includes('autopay') || bodyLower.includes('automatic payment'))) {
+  // Special case: Google Play is a subscription, but plain "Google" is not
+  if (merchantLower.includes('google play') || bodyLower.includes('google play')) {
     return 'subscription';
+  }
+  
+  // If it's just "Google" (not Google Play), treat as other/business service
+  if (merchantLower === 'google' || (merchantLower.includes('google') && !merchantLower.includes('play'))) {
+    return 'other';
   }
 
   // Subscription services (streaming, cloud storage, software, etc.)
@@ -61,10 +64,10 @@ function categorizeAutopay(transaction: ParsedTransaction): string {
     'netflix', 'spotify', 'amazon prime', 'prime video', 'hotstar', 'disney',
     'youtube premium', 'youtube music', 'youtube', 'apple music', 'apple tv', 'apple one',
     'zee5', 'sonyliv', 'voot', 'mx player', 'eros now', 'alt balaji',
-    'jio cinema', 'jio saavn', 'gaana', 'wynk',
+    'jio cinema', 'jio saavn', 'gaana', 'wynk', 'jiohotstar', 'jio hotstar',
     
-    // Cloud & Software
-    'google one', 'google workspace', 'google play', 'icloud', 'dropbox', 'onedrive',
+    // Cloud & Software (consumer-focused only)
+    'google one', 'google workspace', 'icloud', 'dropbox', 'onedrive',
     'microsoft 365', 'office 365', 'adobe', 'canva', 'notion',
     
     // Gaming & Entertainment
@@ -151,6 +154,18 @@ function categorizeAutopay(transaction: ParsedTransaction): string {
     }
   }
 
+  // Business/Cloud Services (AWS, Azure, etc.)
+  const businessKeywords = [
+    'aws', 'azure', 'google cloud', 'digitalocean', 'heroku',
+    'cloudflare', 'vercel', 'netlify'
+  ];
+  
+  for (const keyword of businessKeywords) {
+    if (merchantLower.includes(keyword) || bodyLower.includes(keyword)) {
+      return 'other';
+    }
+  }
+
   return 'other';
 }
 
@@ -176,7 +191,7 @@ function determineStatus(transaction: ParsedTransaction): AutopayStatus {
   const successKeywords = [
     'executed', 'successful', 'completed', 'debited',
     'paid', 'processed', 'created', 'setup', 'set up',
-    'activated', 'enabled', 'registered'
+    'activated', 'enabled', 'registered', 'mandate'
   ];
 
   for (const keyword of successKeywords) {

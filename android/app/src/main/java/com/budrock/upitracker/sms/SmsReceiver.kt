@@ -34,13 +34,12 @@ class SmsReceiver : BroadcastReceiver() {
             Log.d(TAG, "SmsModule registered")
         }
 
-        // UPI-related keywords for filtering incoming SMS
-        // ONLY subscription/autopay/recurring payments, NOT regular transfers
+        // Keywords for filtering incoming SMS - cast a wide net, JS classifier will filter precisely
         private val UPI_KEYWORDS = listOf(
             "autopay", "mandate", "subscription", "e-mandate",
             "recurring", "auto-debit", "automatic payment",
             "standing instruction", "nach", "monthly", "yearly",
-            "quarterly", "weekly"
+            "quarterly", "weekly", "debited", "emi", "debit"
         )
 
         private fun containsUpiKeyword(body: String): Boolean {

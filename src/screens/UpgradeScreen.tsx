@@ -6,27 +6,49 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Dimensions,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
+import LinearGradient from 'react-native-linear-gradient';
 import { getOfferings, purchasePackage, restorePurchases } from '../services/revenuecat';
 import type { PurchasesOffering, PurchasesPackage } from '../services/revenuecat';
+import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
 
 interface Props {
   onUpgradeSuccess: () => void;
   onClose: () => void;
 }
 
-const { height } = Dimensions.get('window');
-
 const FEATURES = [
-  { icon: 'infinity', title: 'Unlimited Subscriptions', desc: 'Track as many as you want' },
-  { icon: 'eye-off', title: 'Ad-Free Experience', desc: 'No interruptions' },
-  { icon: 'refresh-cw', title: 'Autopay Tracking', desc: 'Monitor all payments' },
-  { icon: 'bell', title: 'Smart Notifications', desc: 'Never miss a renewal' },
-  { icon: 'pie-chart', title: 'Advanced Analytics', desc: 'Detailed insights' },
-  { icon: 'shield', title: 'Priority Support', desc: '24/7 assistance' },
+  { 
+    icon: 'infinity', 
+    title: 'Unlimited Subscriptions', 
+    desc: 'Track as many subscriptions as you want without any limits',
+    color: colors.primary[600],
+    bgColor: colors.primary[100],
+  },
+  { 
+    icon: 'eye-off', 
+    title: 'Ad-Free Experience', 
+    desc: 'Enjoy the app without any interruptions or advertisements',
+    color: colors.success[600],
+    bgColor: colors.success[100],
+  },
+  { 
+    icon: 'refresh-cw', 
+    title: 'Autopay Tracking', 
+    desc: 'Monitor all your autopay and mandate transactions',
+    color: colors.warning[600],
+    bgColor: colors.warning[100],
+  },
+  { 
+    icon: 'bell', 
+    title: 'Smart Notifications', 
+    desc: 'Get timely reminders before subscription renewals',
+    color: colors.error[600],
+    bgColor: colors.error[100],
+  },
 ];
 
 export function UpgradeScreen({ onUpgradeSuccess, onClose }: Props) {
@@ -161,99 +183,157 @@ export function UpgradeScreen({ onUpgradeSuccess, onClose }: Props) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#5B67CA" />
-        <Text style={styles.loadingText}>Loading subscription options...</Text>
-      </View>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <LinearGradient
+          colors={gradients.purple}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.loadingContainer}
+        >
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color={colors.text.inverse} />
+            <Text style={styles.loadingText}>Loading subscription options...</Text>
+          </View>
+        </LinearGradient>
+      </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <Icon name="x" size={24} color="#1A1D1F" />
-        </TouchableOpacity>
-      </View>
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        {/* Hero Section with Gradient */}
+        <LinearGradient
+          colors={gradients.sunset}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroSection}
+        >
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Icon name="x" size={24} color={colors.text.inverse} />
+          </TouchableOpacity>
 
-      {/* Hero Section */}
-      <View style={styles.heroSection}>
-        <View style={styles.badge}>
-          <Icon name="star" size={20} color="#FFB800" />
-          <Text style={styles.badgeText}>PRO</Text>
-        </View>
-        <Text style={styles.title}>Upgrade to Pro</Text>
-        <Text style={styles.subtitle}>Unlock all premium features</Text>
-      </View>
-
-      {/* Features Grid */}
-      <View style={styles.featuresGrid}>
-        {FEATURES.map((feature, index) => (
-          <View key={index} style={styles.featureItem}>
-            <View style={styles.featureIconWrapper}>
-              <Icon name={feature.icon} size={20} color="#5B67CA" />
+          <View style={styles.heroContent}>
+            <View style={styles.starBadge}>
+              <Icon name="star" size={20} color="#FFD700" />
             </View>
-            <View style={styles.featureContent}>
-              <Text style={styles.featureTitle}>{feature.title}</Text>
-              <Text style={styles.featureDesc}>{feature.desc}</Text>
-            </View>
+            <Text style={styles.heroTitle}>Upgrade to Pro</Text>
           </View>
-        ))}
-      </View>
+        </LinearGradient>
 
-      {/* Pricing Section */}
-      {offering && offering.availablePackages.length > 0 ? (
-        <View style={styles.pricingSection}>
-          {offering.availablePackages.map((pkg: PurchasesPackage) => (
-            <TouchableOpacity
-              key={pkg.identifier}
-              style={[
-                styles.priceCard,
-                selectedPackage?.identifier === pkg.identifier && styles.priceCardSelected,
-              ]}
-              onPress={() => setSelectedPackage(pkg)}
-            >
-              <View style={styles.priceCardContent}>
-                <View style={styles.priceLeft}>
-                  <Text style={styles.priceTitle}>
-                    {pkg.product.title.replace(/\s*\(.*?\)\s*/g, '')}
-                  </Text>
-                  <Text style={styles.priceAmount}>{pkg.product.priceString}</Text>
+        {/* Features Section */}
+        <View style={styles.featuresSection}>
+          <Text style={styles.sectionTitle}>What You'll Get</Text>
+          
+          <View style={styles.featuresGrid}>
+            {FEATURES.map((feature, index) => (
+              <View key={index} style={styles.featureCard}>
+                <View style={[styles.featureIcon, { backgroundColor: feature.bgColor }]}>
+                  <Icon name={feature.icon} size={24} color={feature.color} />
                 </View>
-                {selectedPackage?.identifier === pkg.identifier && (
-                  <View style={styles.checkCircle}>
-                    <Icon name="check" size={16} color="#FFFFFF" />
-                  </View>
-                )}
+                <View style={styles.featureTextContainer}>
+                  <Text style={styles.featureTitle}>{feature.title}</Text>
+                  <Text style={styles.featureDesc}>{feature.desc}</Text>
+                </View>
+                <View style={styles.featureCheck}>
+                  <Icon name="check-circle" size={20} color={colors.success[500]} />
+                </View>
               </View>
-            </TouchableOpacity>
-          ))}
+            ))}
+          </View>
         </View>
-      ) : (
-        <View style={styles.noOfferings}>
-          <Icon name="alert-circle" size={40} color="#FF6D4D" />
-          <Text style={styles.noOfferingsText}>Products not configured</Text>
-        </View>
-      )}
 
-      {/* Action Buttons */}
+        {/* Pricing Section */}
+        <View style={styles.pricingSection}>
+          <Text style={styles.sectionTitle}>Choose Your Plan</Text>
+          
+          {offering && offering.availablePackages.length > 0 ? (
+            <View style={styles.pricingCards}>
+              {offering.availablePackages.map((pkg: PurchasesPackage) => {
+                const isSelected = selectedPackage?.identifier === pkg.identifier;
+                return (
+                  <TouchableOpacity
+                    key={pkg.identifier}
+                    onPress={() => setSelectedPackage(pkg)}
+                    activeOpacity={0.7}
+                  >
+                    <LinearGradient
+                      colors={isSelected ? gradients.primary : [colors.background, colors.background]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.priceCard,
+                        isSelected && styles.priceCardSelected,
+                        isSelected && shadows.lg,
+                      ]}
+                    >
+                      <View style={styles.priceCardContent}>
+                        <View style={styles.priceInfo}>
+                          <Text style={[styles.planName, isSelected && styles.planNameSelected]}>
+                            {pkg.product.title.replace(/\s*\(.*?\)\s*/g, '')}
+                          </Text>
+                          <View style={styles.priceRow}>
+                            <Text style={[styles.priceAmount, isSelected && styles.priceAmountSelected]}>
+                              {pkg.product.priceString}
+                            </Text>
+                            {pkg.packageType === 'ANNUAL' && (
+                              <View style={styles.saveBadge}>
+                                <Text style={styles.saveBadgeText}>SAVE 40%</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                        {isSelected && (
+                          <View style={styles.selectedBadge}>
+                            <Icon name="check" size={18} color={colors.text.inverse} />
+                          </View>
+                        )}
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.noOfferings}>
+              <Icon name="alert-circle" size={48} color={colors.error[500]} />
+              <Text style={styles.noOfferingsTitle}>Products Not Available</Text>
+              <Text style={styles.noOfferingsText}>
+                In-app purchases are not configured yet. Please try again later.
+              </Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Fixed Footer */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.purchaseButton, purchasing && styles.purchaseButtonDisabled]}
           onPress={handlePurchase}
           disabled={purchasing || !selectedPackage}
+          activeOpacity={0.8}
         >
-          {purchasing ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <>
-              <Icon name="zap" size={20} color="#FFFFFF" />
-              <Text style={styles.purchaseButtonText}>
-                {selectedPackage ? `Subscribe Now` : 'Select a Plan'}
-              </Text>
-            </>
-          )}
+          <LinearGradient
+            colors={purchasing || !selectedPackage ? [colors.gray[300], colors.gray[400]] : gradients.primary}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.purchaseButton, shadows.lg]}
+          >
+            {purchasing ? (
+              <ActivityIndicator color={colors.text.inverse} size="small" />
+            ) : (
+              <>
+                <Icon name="zap" size={20} color={colors.text.inverse} />
+                <Text style={styles.purchaseButtonText}>
+                  {selectedPackage ? 'Start Pro Now' : 'Select a Plan'}
+                </Text>
+              </>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -263,14 +343,14 @@ export function UpgradeScreen({ onUpgradeSuccess, onClose }: Props) {
           disabled={restoring}
         >
           {restoring ? (
-            <ActivityIndicator size="small" color="#5B67CA" />
+            <ActivityIndicator size="small" color={colors.primary[600]} />
           ) : (
             <Text style={styles.restoreButtonText}>Restore Purchases</Text>
           )}
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>
-          Auto-renews. Cancel anytime in settings.
+          Auto-renews. Cancel anytime from your account settings.
         </Text>
       </View>
     </SafeAreaView>
@@ -280,218 +360,258 @@ export function UpgradeScreen({ onUpgradeSuccess, onClose }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: colors.surface,
+  },
+  scrollView: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F7F8FA',
+  },
+  loadingContent: {
+    alignItems: 'center',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 15,
-    color: '#6F767E',
-    fontWeight: '500',
+    marginTop: spacing.md,
+    ...typography.body.medium,
+    color: colors.text.inverse,
+    fontWeight: '600',
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+  heroSection: {
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+    position: 'relative',
   },
   closeButton: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.lg,
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    zIndex: 10,
   },
-  heroSection: {
+  heroContent: {
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 24,
+    marginTop: spacing.lg,
   },
-  badge: {
-    flexDirection: 'row',
+  starBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
-    backgroundColor: '#FFF9E6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#FFB800',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
   },
-  badgeText: {
-    fontSize: 14,
+  heroTitle: {
+    ...typography.headline.large,
+    color: colors.text.inverse,
+    fontWeight: '800',
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  heroSubtitle: {
+    ...typography.body.medium,
+    color: 'rgba(255, 255, 255, 0.95)',
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: spacing.md,
+  },
+  featuresSection: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
+  },
+  sectionTitle: {
+    ...typography.title.medium,
+    color: colors.text.primary,
     fontWeight: '700',
-    color: '#FFB800',
-    letterSpacing: 1,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1A1D1F',
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#6F767E',
-    fontWeight: '500',
+    marginBottom: spacing.md,
   },
   featuresGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 24,
-    marginBottom: 24,
-    gap: 12,
+    gap: spacing.sm,
   },
-  featureItem: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+  featureCard: {
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    ...shadows.sm,
+    borderWidth: 1,
+    borderColor: colors.gray[100],
   },
-  featureIconWrapper: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#F0F1FA',
+  featureIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: spacing.sm,
   },
-  featureContent: {
+  featureTextContainer: {
     flex: 1,
   },
   featureTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1A1D1F',
+    ...typography.body.medium,
+    fontWeight: '700',
+    color: colors.text.primary,
     marginBottom: 2,
   },
   featureDesc: {
-    fontSize: 12,
-    color: '#6F767E',
+    ...typography.body.small,
+    color: colors.text.secondary,
+    lineHeight: 16,
+  },
+  featureCheck: {
+    marginLeft: spacing.xs,
   },
   pricingSection: {
-    paddingHorizontal: 24,
-    marginBottom: 20,
-    gap: 12,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+  pricingCards: {
+    gap: spacing.md,
   },
   priceCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
     borderWidth: 2,
-    borderColor: '#E6E8EC',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    borderColor: colors.gray[200],
   },
   priceCardSelected: {
-    borderColor: '#5B67CA',
-    backgroundColor: '#F0F1FA',
+    borderColor: colors.primary[600],
+    borderWidth: 3,
   },
   priceCardContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  priceLeft: {
+  priceInfo: {
     flex: 1,
   },
-  priceTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1A1D1F',
-    marginBottom: 4,
+  planName: {
+    ...typography.title.small,
+    color: colors.text.primary,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  planNameSelected: {
+    color: colors.text.inverse,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   priceAmount: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#5B67CA',
+    ...typography.headline.medium,
+    color: colors.primary[600],
+    fontWeight: '800',
   },
-  checkCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#5B67CA',
+  priceAmountSelected: {
+    color: colors.text.inverse,
+  },
+  saveBadge: {
+    backgroundColor: colors.success[500],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+  },
+  saveBadgeText: {
+    ...typography.label.small,
+    color: colors.text.inverse,
+    fontWeight: '700',
+  },
+  selectedBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   noOfferings: {
     alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 24,
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
+  },
+  noOfferingsTitle: {
+    ...typography.title.medium,
+    color: colors.error[600],
+    fontWeight: '700',
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
   noOfferingsText: {
-    fontSize: 14,
-    color: '#FF6D4D',
-    marginTop: 12,
+    ...typography.body.medium,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  trustSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    backgroundColor: colors.gray[50],
+    marginHorizontal: spacing.lg,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.lg,
+  },
+  trustItem: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  trustText: {
+    ...typography.label.small,
+    color: colors.text.secondary,
     fontWeight: '600',
   },
   footer: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    marginTop: 'auto',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.gray[100],
+    ...shadows.lg,
   },
   purchaseButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#5B67CA',
-    paddingVertical: 16,
-    borderRadius: 16,
-    gap: 8,
-    shadowColor: '#5B67CA',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 12,
-  },
-  purchaseButtonDisabled: {
-    opacity: 0.6,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
   purchaseButtonText: {
-    fontSize: 17,
+    ...typography.body.large,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: colors.text.inverse,
   },
   restoreButton: {
-    paddingVertical: 12,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: spacing.sm,
   },
   restoreButtonText: {
-    fontSize: 15,
+    ...typography.body.medium,
     fontWeight: '600',
-    color: '#5B67CA',
+    color: colors.primary[600],
   },
   disclaimer: {
-    fontSize: 12,
-    color: '#8F95B2',
+    ...typography.body.small,
+    color: colors.text.tertiary,
     textAlign: 'center',
     lineHeight: 16,
   },

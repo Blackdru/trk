@@ -303,15 +303,18 @@ function App() {
 
       console.log(`[App] Parsed ${transactions.length} transactions from SMS`);
 
-      // IMPORTANT: Separate autopay transactions from regular subscription transactions
-      const autopayTransactions = transactions.filter(t => t.paymentType === 'Autopay' || t.paymentType === 'Mandate');
-      const regularTransactions = transactions.filter(t => t.paymentType !== 'Autopay' && t.paymentType !== 'Mandate');
+      // Detect subscriptions from ALL transactions
+      // The detectSubscriptions function will only create subscriptions for:
+      // 1. Multiple transactions with recurring patterns
+      // 2. Single autopay/mandate transactions for KNOWN subscription services
+      const detected = detectSubscriptions(transactions);
+      console.log(`[App] Detected ${detected.length} subscriptions`);
       
-      console.log(`[App] Split into ${regularTransactions.length} regular and ${autopayTransactions.length} autopay transactions`);
-
-      // Detect subscriptions ONLY from regular transactions (not autopay)
-      const detected = detectSubscriptions(regularTransactions);
-      console.log(`[App] Detected ${detected.length} subscriptions from regular transactions`);
+      // IMPORTANT: Separate autopay transactions for the autopay tracker
+      // All autopay/mandate transactions go here, regardless of whether they're also subscriptions
+      const autopayTransactions = transactions.filter(t => t.paymentType === 'Autopay' || t.paymentType === 'Mandate');
+      
+      console.log(`[App] Found ${autopayTransactions.length} autopay/mandate transactions for tracker`);
       
       // Check subscription limit for free users
       const tier = getSubscriptionTier();

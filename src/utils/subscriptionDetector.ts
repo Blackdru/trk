@@ -19,16 +19,21 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
   for (const [key, txns] of Object.entries(grouped)) {
     const sortedTxns = txns.sort((a, b) => a.date - b.date);
     
-    // For single transaction, check if it's likely a subscription based on keywords
+    // For single transaction, check if it's likely a subscription based on keywords or payment type
     if (txns.length === 1) {
       const txn = sortedTxns[0];
-      const isLikelySubscription = isSubscriptionKeyword(txn);
       
-      if (isLikelySubscription || txn.paymentType === 'Autopay' || txn.paymentType === 'Mandate') {
+      // Check if it's a known subscription service
+      const isKnownService = isSubscriptionKeyword(txn);
+      
+      // If it's marked as Autopay or Mandate AND it's a known service, it's definitely a subscription
+      const isDefinitelySubscription = (txn.paymentType === 'Autopay' || txn.paymentType === 'Mandate') && isKnownService;
+      
+      if (isDefinitelySubscription) {
         const cycle: BillingCycle = 'monthly'; // Default assumption for subscriptions
         const nextRenewal = calculateNextRenewal(txn.date, cycle);
         
-        console.log(`[SubscriptionDetector] Single transaction for ${txn.merchantName}, treating as subscription (${txn.paymentType})`);
+        console.log(`[SubscriptionDetector] Single autopay/mandate for known service ${txn.merchantName}, creating subscription entry`);
         
         subscriptions.push({
           id: `sms-${key}`,
@@ -43,7 +48,7 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
           transactions: sortedTxns,
         });
       } else {
-        console.log(`[SubscriptionDetector] Single transaction for ${txn.merchantName}, not treating as subscription (no subscription keywords)`);
+        console.log(`[SubscriptionDetector] Single transaction for ${txn.merchantName}, not creating subscription (not autopay/mandate for known service)`);
       }
       continue;
     }
@@ -56,7 +61,8 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
       const firstTxn = sortedTxns[0];
       const isKnownService = isSubscriptionKeyword(firstTxn);
       
-      if (isKnownService || firstTxn.paymentType === 'Autopay' || firstTxn.paymentType === 'Mandate') {
+      // Only treat as subscription if it's BOTH a known service AND has autopay/mandate
+      if (isKnownService && (firstTxn.paymentType === 'Autopay' || firstTxn.paymentType === 'Mandate')) {
         // Assume monthly for known services even if pattern is unclear
         const lastTxn = sortedTxns[sortedTxns.length - 1];
         const nextRenewal = calculateNextRenewal(lastTxn.date, 'monthly');
@@ -76,8 +82,18 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
           transactions: sortedTxns,
         });
       } else {
-        console.log(`[SubscriptionDetector] Could not detect cycle for ${firstTxn.merchantName} with ${txns.length} transactions (unknown service)`);
+        console.log(`[SubscriptionDetector] Could not detect cycle for ${firstTxn.merchantName} with ${txns.length} transactions (not a known subscription service)`);
       }
+      continue;
+    }
+
+    // We detected a cycle - but still check if it's a known subscription service
+    const firstTxn = sortedTxns[0];
+    const isKnownService = isSubscriptionKeyword(firstTxn);
+    
+    // Only create subscription if it's a known service
+    if (!isKnownService) {
+      console.log(`[SubscriptionDetector] Detected ${cycle} pattern for ${firstTxn.merchantName} but not a known subscription service, skipping`);
       continue;
     }
 
@@ -111,36 +127,36 @@ function isSubscriptionKeyword(transaction: ParsedTransaction): boolean {
   const merchantLower = transaction.merchantName.toLowerCase();
   const bodyLower = transaction.rawSms?.toLowerCase() || '';
   
-  // Known subscription services
+  // Special case: Only "Google Play" is a subscription, not plain "Google"
+  if (merchantLower === 'google play' || bodyLower.includes('google play')) {
+    return true;
+  }
+  
+  // If it's just "Google" (not Google Play), it's NOT a subscription
+  if (merchantLower === 'google' && !bodyLower.includes('google play')) {
+    return false;
+  }
+  
+  // Known subscription services (consumer entertainment/software only)
   const subscriptionServices = [
     'netflix', 'spotify', 'amazon prime', 'prime video', 'hotstar', 'disney',
-    'youtube premium', 'youtube', 'google one', 'apple', 'icloud',
-    'microsoft', 'office 365', 'adobe', 'dropbox', 'zoom',
-    'swiggy one', 'zomato gold', 'uber pass', 'ola',
-    'jio', 'airtel', 'vodafone', 'vi', 'bsnl',
+    'youtube premium', 'youtube', 'google one', 'apple music', 'apple tv', 'apple one',
+    'microsoft 365', 'office 365', 'adobe', 'dropbox', 'zoom',
+    'swiggy one', 'zomato gold', 'uber pass',
     'times prime', 'cult.fit', 'healthify', 'headspace',
-    'audible', 'kindle', 'scribd', 'medium'
+    'audible', 'kindle', 'scribd', 'medium',
+    'jiohotstar', 'jio hotstar'
   ];
   
-  // Check merchant name
+  // Check merchant name against known services
   for (const service of subscriptionServices) {
     if (merchantLower.includes(service)) {
       return true;
     }
   }
   
-  // Check SMS body for subscription keywords
-  const subscriptionKeywords = [
-    'subscription', 'autopay', 'auto-pay', 'mandate', 'recurring',
-    'monthly plan', 'annual plan', 'yearly plan', 'premium',
-    'membership', 'renewal'
-  ];
-  
-  for (const keyword of subscriptionKeywords) {
-    if (bodyLower.includes(keyword)) {
-      return true;
-    }
-  }
+  // Do NOT check for generic keywords like "mandate", "autopay" etc.
+  // Those apply to utilities, loans, etc. which are NOT subscriptions
   
   return false;
 }

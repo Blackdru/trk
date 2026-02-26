@@ -24,13 +24,13 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         const val NAME = "SmsModule"
         const val EVENT_SMS_RECEIVED = "onSmsReceived"
         
-        // UPI-related keywords for early filtering - only process relevant SMS
-        // ONLY subscription/autopay/recurring payments, NOT regular transfers
+        // Keywords for early filtering - cast a wide net, JS classifier will filter precisely
+        // Include debit/payment keywords to catch all potential subscription SMS
         val UPI_KEYWORDS = listOf(
             "autopay", "mandate", "subscription", "e-mandate",
             "recurring", "auto-debit", "automatic payment",
             "standing instruction", "nach", "monthly", "yearly",
-            "quarterly", "weekly"
+            "quarterly", "weekly", "debited", "emi", "debit"
         )
     }
 

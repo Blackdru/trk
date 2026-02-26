@@ -21,7 +21,7 @@ import { RenewalAlertBanner } from '../components/RenewalAlertBanner';
 import { StatCard } from '../components/StatCard';
 import { Card } from '../components/Card';
 import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
-import { getAutopayStats, getCategoryIcon, getCategoryColor } from '../utils/autopayDetector';
+import { getAutopayStats, getCategoryIcon, getCategoryColor, filterNonSubscriptionAutopay } from '../utils/autopayDetector';
 import { getSubscriptionTier } from '../services/subscriptionService';
 
 const { width } = Dimensions.get('window');
@@ -131,7 +131,9 @@ export function DashboardScreen({
 
   const recentAutopay = useMemo(() => {
     if (!tier.hasAutopayTracking) return [];
-    return [...autopayTransactions]
+    // Filter out subscription-category items to show only non-subscription autopay
+    const nonSubscriptionAutopay = filterNonSubscriptionAutopay(autopayTransactions);
+    return [...nonSubscriptionAutopay]
       .sort((a, b) => b.date - a.date)
       .slice(0, 3);
   }, [autopayTransactions, tier.hasAutopayTracking]);

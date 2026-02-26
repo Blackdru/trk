@@ -1,46 +1,82 @@
 import type { RawSms, ParsedTransaction } from '../types';
+import { extractFeatures, classifySms } from './smsClassifier';
 
 /**
  * Parse SMS body to extract UPI transaction details.
  * 
- * PRIVACY: All parsing happens locally on-device.
+ * Uses Rule-Based ML (Decision Tree) for classification.
+ * PRIVACY: All processing happens locally on-device.
  * No SMS data is transmitted externally.
  */
 export function parseSms(sms: RawSms): ParsedTransaction | null {
   const { body, date } = sms;
-  const lowerBody = body.toLowerCase();
 
   // Skip OTP messages
   if (isOtpMessage(body)) {
     return null;
   }
 
-  // CRITICAL: Only process subscription/autopay/mandate payments
-  // Skip regular UPI transfers to individuals
-  const isSubscriptionPayment = /autopay|mandate|standing instruction|automatic payment|recurring|nach|monthly|yearly|quarterly|subscription|e-mandate/i.test(body);
+  // Extract features and classify using decision tree
+  const features = extractFeatures(sms);
+  const classification = classifySms(features);
   
-  if (!isSubscriptionPayment) {
-    // This is a regular one-time payment, skip it
+  // Log classification for debugging
+  console.log(`[SmsClassifier] Type: ${classification.type}, Confidence: ${classification.confidence}, Reason: ${classification.reason}`);
+  
+  // Reject P2P transfers and unknown types
+  if (classification.type === 'p2p-transfer') {
+    console.log(`[SmsParser] Rejected P2P transfer: ${classification.reason}`);
     return null;
   }
   
-  // Check if this is a mandate creation (not an actual debit yet)
-  const isMandateCreation = /(?:mandate|autopay|automatic payment).*?(?:successfully created|has been setup|setup successfully|created successfully)/i.test(body);
-  const isNachDebit = /debit.*?by\s+nach/i.test(body);
+  // Reject unknown with low confidence
+  if (classification.type === 'unknown' && classification.confidence < 0.60) {
+    console.log(`[SmsParser] Rejected unknown: Low confidence (${classification.confidence})`);
+    return null;
+  }
+  
+  // Accept all subscription-related types (subscription, autopay, mandate, emi)
+  // Even with lower confidence, as long as it's not P2P or completely unknown
+  if (classification.confidence < 0.70 && classification.type !== 'subscription' && classification.type !== 'autopay' && classification.type !== 'mandate' && classification.type !== 'emi') {
+    console.log(`[SmsParser] Rejected: Low confidence (${classification.confidence}) for type ${classification.type}`);
+    return null;
+  }
 
-  // Determine payment type
+  // Determine payment type based on classification
   let paymentType: 'UPI' | 'Autopay' | 'Mandate' = 'UPI';
-  if (isMandateCreation) {
+  if (classification.type === 'mandate') {
     paymentType = 'Mandate';
-  } else if (lowerBody.includes('autopay') || lowerBody.includes('auto-pay') || lowerBody.includes('auto debit') || lowerBody.includes('automatic payment') || lowerBody.includes('standing instruction')) {
+  } else if (classification.type === 'autopay') {
     paymentType = 'Autopay';
-  } else if (lowerBody.includes('mandate') || lowerBody.includes('e-mandate') || isNachDebit) {
-    paymentType = 'Mandate';
+  } else if (classification.type === 'subscription' || classification.type === 'emi') {
+    paymentType = 'Autopay'; // Treat subscriptions and EMI as Autopay
   }
 
   // Extract amount (handles Rs., Rs, INR, ₹ formats)
   const amount = extractAmount(body);
+  
+  // Special case: Subscription confirmation without amount (e.g., JioHotstar activation)
+  // If it's a subscription type and has duration but no amount, use 0 as placeholder
   if (!amount) {
+    if (classification.type === 'subscription' && /\d+\s*days/i.test(body)) {
+      console.log('[SmsParser] Subscription confirmation without amount, using 0 as placeholder');
+      // Still need merchant name
+      const merchantName = extractMerchantName(body);
+      if (!merchantName) {
+        console.log('[SmsParser] Could not extract merchant from:', body.substring(0, 100));
+        return null;
+      }
+      
+      return {
+        id: `${date}-${merchantName}-0`,
+        merchantName,
+        amount: 0,
+        date,
+        paymentType: 'Autopay',
+        rawSms: body,
+      };
+    }
+    
     console.log('[SmsParser] Could not extract amount from:', body.substring(0, 100));
     return null;
   }
@@ -114,6 +150,11 @@ function extractAmount(body: string): number | null {
 }
 
 function extractMerchantName(body: string): string | null {
+  // Special handling for JioHotstar subscription messages
+  if (/jiohotstar|jio.*hotstar/i.test(body)) {
+    return 'JioHotstar';
+  }
+  
   // Special handling for Google Play subscriptions
   if (/google\s*play/i.test(body)) {
     return 'Google Play';
@@ -122,6 +163,16 @@ function extractMerchantName(body: string): string | null {
   // Special handling for Google (generic)
   if (/\bgoogle\b/i.test(body) && !/google\s*play/i.test(body)) {
     return 'Google';
+  }
+  
+  // Special handling for AWS
+  if (/\baws\b|aws\s*india/i.test(body)) {
+    return 'AWS India';
+  }
+  
+  // Special handling for Spotify
+  if (/\bspotify\b/i.test(body)) {
+    return 'Spotify';
   }
   
   // Special handling for LIC
@@ -154,14 +205,18 @@ function extractMerchantName(body: string): string | null {
   const patterns = [
     // "trf to X Refno" pattern (SBI and other banks) - HIGHEST PRIORITY
     /trf\s+to\s+([A-Za-z0-9\s&.+-]+?)\s+(?:Refno|ref|upi)/i,
-    // "towards X" pattern - prioritize this for mandates (improved to capture more)
-    /(?:towards|for)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:is|from|for|rs|inr|₹|\.|a\/c|has))/i,
+    // "towards X" pattern - improved to capture more variations
+    /(?:towards|for)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:is|from|for|rs|inr|₹|\.|a\/c|has|refer))/i,
     // NACH debit pattern - extract from "trf to X Refno"
     /debit.*?by\s+nach.*?(?:trf to|to)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:Refno|ref|upi|\.))/i,
     // "to X monthly/yearly" pattern
     /(?:to)\s+([A-Za-z0-9\s&.+-]+?)\s+(?:monthly|yearly|quarterly|weekly)/i,
     // "for X" pattern - for autopay/debited messages
     /(?:debited\s+for|autopay\s+for|enabled\s+for|set\s+up\s+for)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:on|has|bill|subscription|broadband|cylinder|monthly|\.))/i,
+    // "on X" pattern - for mandate creation
+    /(?:mandate|autopay).*?(?:on)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:for|from|starting))/i,
+    // "Regards, X" pattern - for EMI reminders and bank messages
+    /regards,?\s+([A-Za-z0-9\s&.+-]+?)(?:\s*$|\s*\.)/i,
     // "X bill" pattern
     /([A-Za-z0-9\s&.+-]+?)\s+(?:bill|monthly\s+bill)\s+(?:Rs|INR|₹)/i,
     // "X EMI" pattern
@@ -196,7 +251,7 @@ function extractMerchantName(body: string): string | null {
 
   // Fallback: Try to extract from common service names
   const fallbackPatterns = [
-    /(?:Netflix|Spotify|Amazon|Hotstar|Disney|Youtube|Google|Apple|Prime|Swiggy|Zomato|Uber|Ola|LIC|Dropbox|ACT|Indane|Personal\s+Loan)/i,
+    /(?:Netflix|Spotify|Amazon|Hotstar|Disney|Youtube|Google|Apple|Prime|Swiggy|Zomato|Uber|Ola|LIC|Dropbox|ACT|Indane|Personal\s+Loan|AWS)/i,
   ];
 
   for (const pattern of fallbackPatterns) {
