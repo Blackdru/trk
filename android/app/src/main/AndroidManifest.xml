@@ -21,12 +21,27 @@
     <!-- Required for notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     
+    <!-- Required for alarm vibration -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    
+    <!-- 
+        REQUEST_IGNORE_BATTERY_OPTIMIZATIONS allows the app to request exemption from battery optimization.
+        This is critical for alarm reliability as battery optimization can prevent alarms from triggering.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    
     <!-- 
         SCHEDULE_EXACT_ALARM is allowed for subscription reminders.
         This is used for user-initiated alarms (subscription renewal reminders).
         Falls back to inexact alarms if not granted.
     -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    
+    <!-- 
+        USE_EXACT_ALARM is a fallback for Android 13+ when SCHEDULE_EXACT_ALARM is not granted.
+        This permission doesn't require user approval for alarm/reminder apps.
+    -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     
     <!-- Required to restart alarms after device reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -70,6 +85,35 @@
         android:permission="android.permission.BROADCAST_SMS">
         <intent-filter>
           <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+        </intent-filter>
+      </receiver>
+      
+      <!-- 
+          Alarm BroadcastReceiver for payment reminders.
+          Triggers even when app is completely closed.
+      -->
+      <receiver
+        android:name=".alarm.AlarmReceiver"
+        android:exported="false"
+        android:enabled="true">
+      </receiver>
+      
+      <!-- Dismiss receiver for clearable alarm notifications -->
+      <receiver
+        android:name=".alarm.AlarmDismissReceiver"
+        android:exported="false"
+        android:enabled="true">
+      </receiver>
+
+      <!-- Boot receiver: reschedules alarms after device reboot -->
+      <receiver
+        android:name=".alarm.BootReceiver"
+        android:exported="true"
+        android:enabled="true">
+        <intent-filter>
+          <action android:name="android.intent.action.BOOT_COMPLETED" />
+          <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+          <category android:name="android.intent.category.DEFAULT" />
         </intent-filter>
       </receiver>
     </application>

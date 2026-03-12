@@ -1,5 +1,6 @@
 package com.budrock.upitracker
 
+import android.content.Intent
 import android.os.Bundle
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -15,6 +16,28 @@ class MainActivity : ReactActivity() {
     // Set the theme to AppTheme BEFORE onCreate to remove splash screen
     setTheme(R.style.AppTheme)
     super.onCreate(savedInstanceState)
+    
+    // Handle alarm intent if present
+    handleAlarmIntent(intent)
+  }
+
+  /**
+   * Handle new intents (when app is already running)
+   */
+  override fun onNewIntent(intent: Intent?) {
+    super.onNewIntent(intent)
+    intent?.let { handleAlarmIntent(it) }
+  }
+
+  /**
+   * Check if intent contains alarm data and pass to React Native
+   */
+  private fun handleAlarmIntent(intent: Intent) {
+    val paymentId = intent.getStringExtra("alarmPaymentId")
+    if (paymentId != null) {
+      // Alarm data will be read by React Native on app start
+      android.util.Log.d("MainActivity", "Alarm intent received for payment: $paymentId")
+    }
   }
 
   /**

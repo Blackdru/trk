@@ -1,5 +1,5 @@
 import { createMMKV, type MMKV } from 'react-native-mmkv';
-import type { Subscription, AppSettings } from '../types';
+import type { Subscription, AppSettings, AutopayTransaction } from '../types';
 
 let storage: MMKV | null = null;
 
@@ -24,6 +24,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   notificationsEnabled: true,
   lastSmsSync: 0,
   trackAutopay: true, // Enable autopay tracking by default
+  alarmTimeBeforeDue: 8, // Default 8 AM for 1-2 days before
+  alarmTimeOnDueDate: 6, // Default 6 AM on payment date
 };
 
 export function getSubscriptions(): Subscription[] {
@@ -93,7 +95,13 @@ export function clearDeletedSubscriptions(): void {
 
 export function getSettings(): AppSettings {
   const data = getStorage().getString(KEYS.SETTINGS);
-  return data ? JSON.parse(data) : DEFAULT_SETTINGS;
+  const settings = data ? JSON.parse(data) : DEFAULT_SETTINGS;
+  
+  // Ensure new fields have default values for existing users
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+  };
 }
 
 export function saveSettings(settings: AppSettings): void {
@@ -136,12 +144,12 @@ export function mergeSubscriptions(detected: Subscription[], existing: Subscript
 }
 
 // Autopay transaction storage
-export function getAutopayTransactions(): any[] {
+export function getAutopayTransactions(): AutopayTransaction[] {
   const data = getStorage().getString(KEYS.AUTOPAY_TRANSACTIONS);
   return data ? JSON.parse(data) : [];
 }
 
-export function saveAutopayTransactions(transactions: any[]): void {
+export function saveAutopayTransactions(transactions: AutopayTransaction[]): void {
   getStorage().set(KEYS.AUTOPAY_TRANSACTIONS, JSON.stringify(transactions));
 }
 

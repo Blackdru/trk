@@ -41,10 +41,15 @@ export interface AutopayTransaction {
   status: AutopayStatus;
   rawSms: string;
   category?: string; // e.g., 'utility', 'insurance', 'loan', 'subscription'
+  nextPaymentDate?: number; // Expected next payment date for recurring autopay
+  billingCycle?: BillingCycle; // Detected billing cycle for recurring autopay
+  notificationEnabled?: boolean; // Whether to notify for this autopay
 }
 
 export interface AppSettings {
   notificationsEnabled: boolean;
   lastSmsSync: number;
   trackAutopay: boolean; // New setting to enable/disable autopay tracking
+  alarmTimeBeforeDue: number; // Hour (0-23) for alarms 1-2 days before due date (default: 8)
+  alarmTimeOnDueDate: number; // Hour (0-23) for alarm on payment due date (default: 6)
 }

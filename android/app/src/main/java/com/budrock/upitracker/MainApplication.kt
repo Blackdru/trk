@@ -7,6 +7,7 @@ import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.budrock.upitracker.sms.SmsPackage
+import com.budrock.upitracker.alarm.AlarmPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -17,6 +18,8 @@ class MainApplication : Application(), ReactApplication {
         PackageList(this).packages.apply {
           // Add custom SMS module for UPI subscription detection
           add(SmsPackage())
+          // Add custom Alarm module for payment reminders
+          add(AlarmPackage())
         },
     )
   }

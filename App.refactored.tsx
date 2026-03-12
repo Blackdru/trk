@@ -162,21 +162,16 @@ function AppContent() {
     };
   }, [hasSmsPermission, subscriptions, autopayTransactions, handleNewTransaction]);
 
-  // Schedule payment alarms and notifications
+  // Schedule payment alarms
   useEffect(() => {
     if (settings.notificationsEnabled) {
-      console.log('[App] Scheduling native alarms and notifications...');
+      console.log('[App] Scheduling native alarms...');
       schedulePaymentAlarms(
         subscriptions,
         autopayTransactions,
         settings.alarmTimeBeforeDue || 8,
         settings.alarmTimeOnDueDate || 6
       );
-      
-      // Also schedule notifee notifications for redundancy
-      import('./src/utils/reliableNotifications').then(({ scheduleAllReliableReminders }) => {
-        scheduleAllReliableReminders(subscriptions, autopayTransactions);
-      });
     }
   }, [subscriptions, autopayTransactions, settings.notificationsEnabled, settings.alarmTimeBeforeDue, settings.alarmTimeOnDueDate]);
 
@@ -219,18 +214,7 @@ function AppContent() {
       const enrichedAutopay = enrichAutopayWithCycles(storedAutopay);
       setAutopayTransactions(enrichedAutopay);
 
-      // Create notification channels and request permission
       await createNotificationChannels();
-      
-      // Request notification permission if notifications are enabled
-      if (settings.notificationsEnabled) {
-        const { requestNotificationPermission } = await import('./src/utils/reliableNotifications');
-        const hasNotificationPermission = await requestNotificationPermission();
-        
-        if (!hasNotificationPermission) {
-          console.warn('[App] Notification permission not granted');
-        }
-      }
 
       console.log('[App] Initializing RevenueCat...');
       await initializeRevenueCat();

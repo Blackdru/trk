@@ -1,4 +1,5 @@
 export { DashboardScreen } from './DashboardScreen';
+export { AllUpcomingPaymentsScreen } from './AllUpcomingPaymentsScreen';
 export { SubscriptionsScreen } from './SubscriptionsScreen';
 export { AddSubscriptionScreen } from './AddSubscriptionScreen';
 export { SettingsScreen } from './SettingsScreen';

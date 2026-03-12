@@ -8,8 +8,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AllUpcomingPaymentsScreen } from './AllUpcomingPaymentsScreen';
 import dayjs from 'dayjs';
 import Icon from 'react-native-vector-icons/Feather';
 import LinearGradient from 'react-native-linear-gradient';
@@ -18,6 +20,7 @@ import { getTotalMonthlySpend, getUpcomingRenewals } from '../utils/subscription
 import { SubscriptionLogo } from '../components/SubscriptionLogo';
 import { BannerAdComponent } from '../components/BannerAdComponent';
 import { RenewalAlertBanner } from '../components/RenewalAlertBanner';
+import { SmartPaymentAlert } from '../components/SmartPaymentAlert';
 import { StatCard } from '../components/StatCard';
 import { Card } from '../components/Card';
 import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
@@ -38,6 +41,8 @@ interface Props {
   };
   showRenewalAlert: boolean;
   onDismissRenewalAlert: () => void;
+  onMarkSubscriptionPaid: (id: string) => void;
+  onMarkAutopayPaid: (id: string) => void;
 }
 
 export function DashboardScreen({ 
@@ -48,8 +53,11 @@ export function DashboardScreen({
   upcomingRenewals,
   showRenewalAlert,
   onDismissRenewalAlert,
+  onMarkSubscriptionPaid,
+  onMarkAutopayPaid,
 }: Props) {
   const [activeTab, setActiveTab] = useState<'overview' | 'subscriptions' | 'autopay'>('overview');
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const tier = getSubscriptionTier();
   
   // Subscription Analytics
@@ -107,11 +115,15 @@ export function DashboardScreen({
       .slice(0, 2);
   }, [subscriptions]);
 
-  // Autopay Analytics
-  const autopayStats = getAutopayStats(autopayTransactions);
+  // Autopay Analytics - Filter out subscription-category transactions
+  const filteredAutopayTransactions = useMemo(() => 
+    filterNonSubscriptionAutopay(autopayTransactions),
+    [autopayTransactions]
+  );
+  const autopayStats = getAutopayStats(filteredAutopayTransactions);
   const autopayLast30Days = useMemo(() => 
-    tier.hasAutopayTracking ? autopayTransactions.filter(t => t.date >= Date.now() - (30 * 24 * 60 * 60 * 1000)) : [],
-    [autopayTransactions, tier.hasAutopayTracking]
+    tier.hasAutopayTracking ? filteredAutopayTransactions.filter(t => t.date >= Date.now() - (30 * 24 * 60 * 60 * 1000)) : [],
+    [filteredAutopayTransactions, tier.hasAutopayTracking]
   );
   const autopayMonthlyTotal = autopayLast30Days.reduce((sum, t) => sum + t.amount, 0);
   const avgAutopayAmount = autopayLast30Days.length > 0 
@@ -131,12 +143,10 @@ export function DashboardScreen({
 
   const recentAutopay = useMemo(() => {
     if (!tier.hasAutopayTracking) return [];
-    // Filter out subscription-category items to show only non-subscription autopay
-    const nonSubscriptionAutopay = filterNonSubscriptionAutopay(autopayTransactions);
-    return [...nonSubscriptionAutopay]
+    return [...filteredAutopayTransactions]
       .sort((a, b) => b.date - a.date)
       .slice(0, 3);
-  }, [autopayTransactions, tier.hasAutopayTracking]);
+  }, [filteredAutopayTransactions, tier.hasAutopayTracking]);
 
   // Combined Analytics
   const totalSpending = totalMonthly + (tier.hasAutopayTracking ? (autopayMonthlyTotal / 30) * 30 : 0);
@@ -212,17 +222,15 @@ export function DashboardScreen({
           />
         }
       >
-        {/* Renewal Alerts */}
-        {showRenewalAlert && (
-          <View style={styles.section}>
-            <RenewalAlertBanner
-              today={upcomingRenewals.today}
-              tomorrow={upcomingRenewals.tomorrow}
-              twoDays={upcomingRenewals.twoDays}
-              onDismiss={onDismissRenewalAlert}
-            />
-          </View>
-        )}
+        {/* Smart Payment Alerts */}
+        <View style={styles.section}>
+          <SmartPaymentAlert
+            subscriptions={subscriptions}
+            autopayTransactions={autopayTransactions}
+            onDismiss={onDismissRenewalAlert}
+            onViewDetails={() => setShowAllUpcoming(true)}
+          />
+        </View>
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
@@ -610,6 +618,21 @@ export function DashboardScreen({
           </View>
         )}
       </ScrollView>
+
+      <Modal
+        visible={showAllUpcoming}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowAllUpcoming(false)}
+      >
+        <AllUpcomingPaymentsScreen
+          subscriptions={subscriptions}
+          autopayTransactions={autopayTransactions}
+          onClose={() => setShowAllUpcoming(false)}
+          onMarkSubscriptionPaid={onMarkSubscriptionPaid}
+          onMarkAutopayPaid={onMarkAutopayPaid}
+        />
+      </Modal>
     </SafeAreaView>
   );
 }

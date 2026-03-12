@@ -32,12 +32,13 @@ interface Props {
   onRefresh: () => Promise<void>;
   refreshing: boolean;
   onUpgradePress: () => void;
+  onDelete: (id: string) => void;
 }
 
 type FilterOption = 'all' | 'active' | 'inactive';
 type SortOption = 'date' | 'amount' | 'merchant';
 
-export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePress }: Props) {
+export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePress, onDelete }: Props) {
   const tier = getSubscriptionTier();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
@@ -409,7 +410,16 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
                       )}
                     </View>
                   </View>
-                  <Text style={styles.txnAmount}>₹{txn.amount}</Text>
+                  <View style={styles.txnRight}>
+                    <Text style={styles.txnAmount}>₹{txn.amount}</Text>
+                    <TouchableOpacity
+                      style={styles.txnDeleteButton}
+                      onPress={() => onDelete(txn.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Icon name="trash-2" size={14} color={colors.error[500]} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               ))}
             </Card>
@@ -722,10 +732,22 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '600',
   },
+  txnRight: {
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+  },
   txnAmount: {
     ...typography.title.small,
     fontWeight: '700',
     color: colors.text.primary,
+  },
+  txnDeleteButton: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.error[50],
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   empty: {
     alignItems: 'center',

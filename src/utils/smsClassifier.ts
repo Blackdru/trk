@@ -136,7 +136,7 @@ export function extractFeatures(sms: RawSms): SmsFeatures {
  * Decision Tree Classifier
  * Uses extracted features to classify SMS type
  */
-export function classifySms(features: SmsFeatures): ClassificationResult {
+export function classifySms(features: SmsFeatures, body?: string): ClassificationResult {
   // Rule 1: Strong mandate/autopay indicators
   if (features.hasMandateKeyword && features.hasSuccessIndicator && !features.merchantLooksLikePerson) {
     return {
@@ -175,7 +175,7 @@ export function classifySms(features: SmsFeatures): ClassificationResult {
   // Rule 4: Standing instruction / NACH / Utility bills
   if ((features.hasStandingInstructionKeyword || features.hasNachKeyword || features.hasAutopayKeyword) && features.hasDebitIndicator) {
     return {
-      type: 'mandate',
+      type: 'autopay',
       confidence: 0.88,
       reason: 'Standing instruction, NACH, or autopay debit'
     };
@@ -212,9 +212,18 @@ export function classifySms(features: SmsFeatures): ClassificationResult {
   // Rule 8: Sender ID indicates mandate
   if (features.senderIdType === 'bank-mandate' && features.hasDebitIndicator) {
     return {
-      type: 'mandate',
+      type: 'autopay',
       confidence: 0.82,
       reason: 'Bank mandate sender ID'
+    };
+  }
+  
+  // Rule 8.5: "executed" or "processed" with autopay
+  if ((features.hasAutopayKeyword || features.hasMandateKeyword) && /executed|processed/i.test(body)) {
+    return {
+      type: 'autopay',
+      confidence: 0.85,
+      reason: 'Autopay/mandate executed or processed'
     };
   }
   

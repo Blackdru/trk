@@ -21,6 +21,7 @@ interface Props {
   onRefresh: () => Promise<void>;
   refreshing: boolean;
   onDeleteSubscription: (id: string) => void;
+  onDeleteAutopay: (id: string) => void;
   onAddSubscription: (sub: Subscription) => boolean;
   onAddAutopay: (autopay: AutopayTransaction) => boolean;
   settings: AppSettings;
@@ -36,6 +37,8 @@ interface Props {
   };
   showRenewalAlert: boolean;
   onDismissRenewalAlert: () => void;
+  onMarkSubscriptionPaid: (id: string) => void;
+  onMarkAutopayPaid: (id: string) => void;
 }
 
 export function BottomTabNavigator({
@@ -44,6 +47,7 @@ export function BottomTabNavigator({
   onRefresh,
   refreshing,
   onDeleteSubscription,
+  onDeleteAutopay,
   onAddSubscription,
   onAddAutopay,
   settings,
@@ -55,6 +59,8 @@ export function BottomTabNavigator({
   upcomingRenewals,
   showRenewalAlert,
   onDismissRenewalAlert,
+  onMarkSubscriptionPaid,
+  onMarkAutopayPaid,
 }: Props) {
   return (
     <Tab.Navigator
@@ -135,6 +141,8 @@ export function BottomTabNavigator({
             upcomingRenewals={upcomingRenewals}
             showRenewalAlert={showRenewalAlert}
             onDismissRenewalAlert={onDismissRenewalAlert}
+            onMarkSubscriptionPaid={onMarkSubscriptionPaid}
+            onMarkAutopayPaid={onMarkAutopayPaid}
           />
         )}
       </Tab.Screen>
@@ -174,6 +182,7 @@ export function BottomTabNavigator({
             onRefresh={onRefresh}
             refreshing={refreshing}
             onUpgradePress={onUpgradePress}
+            onDelete={onDeleteAutopay}
           />
         )}
       </Tab.Screen>

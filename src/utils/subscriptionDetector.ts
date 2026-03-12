@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import type { ParsedTransaction, Subscription, BillingCycle } from '../types';
+import { isKnownSubscriptionService, getStandardizedMerchantName } from './merchantPatterns';
 
 /**
  * Group transactions into subscriptions based on merchant, amount, and interval.
@@ -124,41 +125,7 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
  * Check if transaction is likely a subscription based on merchant name or keywords
  */
 function isSubscriptionKeyword(transaction: ParsedTransaction): boolean {
-  const merchantLower = transaction.merchantName.toLowerCase();
-  const bodyLower = transaction.rawSms?.toLowerCase() || '';
-  
-  // Special case: Only "Google Play" is a subscription, not plain "Google"
-  if (merchantLower === 'google play' || bodyLower.includes('google play')) {
-    return true;
-  }
-  
-  // If it's just "Google" (not Google Play), it's NOT a subscription
-  if (merchantLower === 'google' && !bodyLower.includes('google play')) {
-    return false;
-  }
-  
-  // Known subscription services (consumer entertainment/software only)
-  const subscriptionServices = [
-    'netflix', 'spotify', 'amazon prime', 'prime video', 'hotstar', 'disney',
-    'youtube premium', 'youtube', 'google one', 'apple music', 'apple tv', 'apple one',
-    'microsoft 365', 'office 365', 'adobe', 'dropbox', 'zoom',
-    'swiggy one', 'zomato gold', 'uber pass',
-    'times prime', 'cult.fit', 'healthify', 'headspace',
-    'audible', 'kindle', 'scribd', 'medium',
-    'jiohotstar', 'jio hotstar'
-  ];
-  
-  // Check merchant name against known services
-  for (const service of subscriptionServices) {
-    if (merchantLower.includes(service)) {
-      return true;
-    }
-  }
-  
-  // Do NOT check for generic keywords like "mandate", "autopay" etc.
-  // Those apply to utilities, loans, etc. which are NOT subscriptions
-  
-  return false;
+  return isKnownSubscriptionService(transaction.merchantName, transaction.rawSms);
 }
 
 function groupTransactions(transactions: ParsedTransaction[]): Record<string, ParsedTransaction[]> {

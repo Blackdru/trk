@@ -134,6 +134,14 @@ export async function scheduleAllNotifications(subscriptions: Subscription[]): P
   }
 }
 
+export interface UpcomingPayment {
+  id: string;
+  merchantName: string;
+  amount: number;
+  dueDate: number;
+  type: 'subscription' | 'autopay';
+}
+
 /**
  * Get subscriptions that are due for renewal soon (for in-app alerts)
  */
@@ -146,7 +154,6 @@ export function getUpcomingRenewals(subscriptions: Subscription[]): {
   const today = now.startOf('day');
   const tomorrow = today.add(1, 'day');
   const twoDays = today.add(2, 'day');
-  const threeDays = today.add(3, 'day');
 
   return {
     today: subscriptions.filter(sub => {
@@ -161,5 +168,52 @@ export function getUpcomingRenewals(subscriptions: Subscription[]): {
       const renewalDay = dayjs(sub.nextRenewalDate).startOf('day');
       return renewalDay.isSame(twoDays, 'day');
     }),
+  };
+}
+
+/**
+ * Get all upcoming payments (subscriptions + autopay) for in-app alerts
+ */
+export function getUpcomingPayments(
+  subscriptions: Subscription[],
+  autopayTransactions: { id: string; merchantName: string; amount: number; nextPaymentDate?: number }[]
+): {
+  today: UpcomingPayment[];
+  tomorrow: UpcomingPayment[];
+  twoDays: UpcomingPayment[];
+} {
+  const now = dayjs();
+  const today = now.startOf('day');
+  const tomorrow = today.add(1, 'day');
+  const twoDays = today.add(2, 'day');
+
+  const payments: UpcomingPayment[] = [];
+
+  subscriptions.forEach(sub => {
+    payments.push({
+      id: sub.id,
+      merchantName: sub.merchantName,
+      amount: sub.amount,
+      dueDate: sub.nextRenewalDate,
+      type: 'subscription',
+    });
+  });
+
+  autopayTransactions.forEach(ap => {
+    if (ap.nextPaymentDate) {
+      payments.push({
+        id: ap.id,
+        merchantName: ap.merchantName,
+        amount: ap.amount,
+        dueDate: ap.nextPaymentDate,
+        type: 'autopay',
+      });
+    }
+  });
+
+  return {
+    today: payments.filter(p => dayjs(p.dueDate).startOf('day').isSame(today, 'day')),
+    tomorrow: payments.filter(p => dayjs(p.dueDate).startOf('day').isSame(tomorrow, 'day')),
+    twoDays: payments.filter(p => dayjs(p.dueDate).startOf('day').isSame(twoDays, 'day')),
   };
 }

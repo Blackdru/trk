@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Linking,
   Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
@@ -15,6 +16,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import type { AppSettings } from '../types';
 import { Card } from '../components/Card';
 import { ContactScreen } from './ContactScreen';
+import { ReminderScheduleInfo } from '../components/ReminderScheduleInfo';
+import { TimePickerModal } from '../components/TimePickerModal';
 import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
 
 interface Props {
@@ -35,11 +38,60 @@ export function SettingsScreen({
   onUpgradePress,
 }: Props) {
   const [showContactModal, setShowContactModal] = useState(false);
+  const [showReminderInfo, setShowReminderInfo] = useState(false);
+  const [showBeforeDueTimePicker, setShowBeforeDueTimePicker] = useState(false);
+  const [showDueDateTimePicker, setShowDueDateTimePicker] = useState(false);
 
-  const toggleNotifications = () => {
+  const toggleNotifications = async () => {
+    const newValue = !settings.notificationsEnabled;
+    
+    if (newValue) {
+      // Request notification permission when enabling
+      const { requestNotificationPermission } = await import('../utils/reliableNotifications');
+      const hasPermission = await requestNotificationPermission();
+      
+      if (!hasPermission) {
+        // Show alert if permission denied
+        Alert.alert(
+          'Notification Permission Required',
+          'Please allow notifications in your device settings to receive payment reminders.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Open Settings', 
+              onPress: () => {
+                Linking.openSettings();
+              }
+            }
+          ]
+        );
+        return;
+      }
+    }
+    
     onSettingsChange({
       ...settings,
-      notificationsEnabled: !settings.notificationsEnabled,
+      notificationsEnabled: newValue,
+    });
+  };
+
+  const formatHour = (hour: number) => {
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:00 ${period}`;
+  };
+
+  const handleBeforeDueTimeChange = (hour: number) => {
+    onSettingsChange({
+      ...settings,
+      alarmTimeBeforeDue: hour,
+    });
+  };
+
+  const handleDueDateTimeChange = (hour: number) => {
+    onSettingsChange({
+      ...settings,
+      alarmTimeOnDueDate: hour,
     });
   };
 
@@ -119,8 +171,8 @@ export function SettingsScreen({
               <Icon name="bell" size={18} color={colors.primary[600]} />
             </View>
             <View style={styles.rowInfo}>
-              <Text style={styles.rowTitle}>Renewal Reminders</Text>
-              <Text style={styles.rowSubtitle}>Get notified 2 days before renewal</Text>
+              <Text style={styles.rowTitle}>Payment Alarms</Text>
+              <Text style={styles.rowSubtitle}>Daily alarms • Works even when app is closed</Text>
             </View>
             <Switch
               value={settings.notificationsEnabled}
@@ -130,6 +182,67 @@ export function SettingsScreen({
               ios_backgroundColor={colors.gray[200]}
             />
           </View>
+          
+          {settings.notificationsEnabled && (
+            <>
+              <View style={styles.divider} />
+              
+              <TouchableOpacity 
+                style={styles.row} 
+                onPress={() => setShowBeforeDueTimePicker(true)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.iconWrapper, { backgroundColor: colors.warning[100] }]}>
+                  <Icon name="clock" size={18} color={colors.warning[600]} />
+                </View>
+                <View style={styles.rowInfo}>
+                  <Text style={styles.rowTitle}>Alarm Time (Before Due)</Text>
+                  <Text style={styles.rowSubtitle}>For 1-2 days before payment date</Text>
+                </View>
+                <View style={styles.timeDisplay}>
+                  <Text style={styles.timeDisplayText}>{formatHour(settings.alarmTimeBeforeDue || 8)}</Text>
+                  <Icon name="chevron-right" size={16} color={colors.text.tertiary} />
+                </View>
+              </TouchableOpacity>
+              
+              <View style={styles.divider} />
+              
+              <TouchableOpacity 
+                style={styles.row} 
+                onPress={() => setShowDueDateTimePicker(true)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.iconWrapper, { backgroundColor: colors.error[100] }]}>
+                  <Icon name="alert-circle" size={18} color={colors.error[600]} />
+                </View>
+                <View style={styles.rowInfo}>
+                  <Text style={styles.rowTitle}>Alarm Time (Due Date)</Text>
+                  <Text style={styles.rowSubtitle}>On payment due date</Text>
+                </View>
+                <View style={styles.timeDisplay}>
+                  <Text style={styles.timeDisplayText}>{formatHour(settings.alarmTimeOnDueDate || 6)}</Text>
+                  <Icon name="chevron-right" size={16} color={colors.text.tertiary} />
+                </View>
+              </TouchableOpacity>
+            </>
+          )}
+          
+          <View style={styles.divider} />
+          
+          <TouchableOpacity 
+            style={styles.row} 
+            onPress={() => setShowReminderInfo(true)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconWrapper, { backgroundColor: colors.success[100] }]}>
+              <Icon name="info" size={18} color={colors.success[600]} />
+            </View>
+            <View style={styles.rowInfo}>
+              <Text style={styles.rowTitle}>How Alarms Work</Text>
+              <Text style={styles.rowSubtitle}>View alarm schedule & features</Text>
+            </View>
+            <Icon name="chevron-right" size={18} color={colors.text.tertiary} />
+          </TouchableOpacity>
         </Card>
       </View>
 
@@ -233,6 +346,31 @@ export function SettingsScreen({
       >
         <ContactScreen onClose={() => setShowContactModal(false)} />
       </Modal>
+
+      {/* Reminder Schedule Info Modal */}
+      <ReminderScheduleInfo
+        visible={showReminderInfo}
+        onClose={() => setShowReminderInfo(false)}
+      />
+
+      {/* Time Picker Modals */}
+      <TimePickerModal
+        visible={showBeforeDueTimePicker}
+        onClose={() => setShowBeforeDueTimePicker(false)}
+        onSelect={handleBeforeDueTimeChange}
+        selectedHour={settings.alarmTimeBeforeDue || 8}
+        title="Alarm Time (Before Due)"
+        subtitle="For 1-2 days before payment"
+      />
+
+      <TimePickerModal
+        visible={showDueDateTimePicker}
+        onClose={() => setShowDueDateTimePicker(false)}
+        onSelect={handleDueDateTimeChange}
+        selectedHour={settings.alarmTimeOnDueDate || 6}
+        title="Alarm Time (Due Date)"
+        subtitle="On payment due date"
+      />
     </SafeAreaView>
   );
 }
@@ -278,6 +416,11 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border.light,
+    marginVertical: spacing.sm,
   },
   iconWrapper: {
     width: 36,
@@ -401,5 +544,22 @@ const styles = StyleSheet.create({
   },
   cardSpacing: {
     height: spacing.sm,
+  },
+  timeDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    backgroundColor: colors.primary[50],
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+  },
+  timeDisplayText: {
+    ...typography.body.small,
+    color: colors.primary[700],
+    fontWeight: '700',
+    fontSize: 12,
   },
 });

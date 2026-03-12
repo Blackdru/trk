@@ -18,7 +18,7 @@ export function parseSms(sms: RawSms): ParsedTransaction | null {
 
   // Extract features and classify using decision tree
   const features = extractFeatures(sms);
-  const classification = classifySms(features);
+  const classification = classifySms(features, body);
   
   // Log classification for debugging
   console.log(`[SmsClassifier] Type: ${classification.type}, Confidence: ${classification.confidence}, Reason: ${classification.reason}`);
@@ -37,7 +37,7 @@ export function parseSms(sms: RawSms): ParsedTransaction | null {
   
   // Accept all subscription-related types (subscription, autopay, mandate, emi)
   // Even with lower confidence, as long as it's not P2P or completely unknown
-  if (classification.confidence < 0.70 && classification.type !== 'subscription' && classification.type !== 'autopay' && classification.type !== 'mandate' && classification.type !== 'emi') {
+  if (classification.confidence < 0.65 && classification.type !== 'subscription' && classification.type !== 'autopay' && classification.type !== 'mandate' && classification.type !== 'emi') {
     console.log(`[SmsParser] Rejected: Low confidence (${classification.confidence}) for type ${classification.type}`);
     return null;
   }
@@ -125,11 +125,28 @@ function isOtpMessage(body: string): boolean {
 function extractAmount(body: string): number | null {
   // Common amount patterns in Indian bank SMS
   const patterns = [
-    // "debited by 550.00" format (SBI and other banks)
-    /debited\s+by\s+([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // Standard currency formats
-    /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // "Rs 3,275.00" or "Rs.3,275.00" or "Rs. 3,275.00"
+    /(?:rs\.?\s*|inr\s*|₹\s*)([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // "3,275.00 Rs" or "3275 INR"
     /([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:rs\.?|inr|₹)/i,
+    // "debited by 550.00" format
+    /debited\s+by\s+([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // "debited with Rs.119/-"
+    /debited\s+with\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s*\/-?/i,
+    // "of Rs.15000" or "of INR 15000"
+    /of\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // "Rs 399 autopay" or "Rs.399 autopay"
+    /(?:rs\.?\s*|inr\s*|₹\s*)([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:autopay|mandate|debited|for|to|set)/i,
+    // "EMI of Rs.12000"
+    /emi\s+of\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // "payment of Rs.1800"
+    /payment\s+of\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // "premium Rs.7500"
+    /premium\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // "bill Rs.699"
+    /bill\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // "autopay of Rs.5000.00"
+    /autopay\s+of\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
     // Generic debited/amount patterns
     /debited.*?([0-9,]+(?:\.[0-9]{1,2})?)/i,
     /amount.*?([0-9,]+(?:\.[0-9]{1,2})?)/i,
@@ -140,7 +157,7 @@ function extractAmount(body: string): number | null {
     if (match) {
       const amountStr = match[1].replace(/,/g, '');
       const amount = parseFloat(amountStr);
-      if (!isNaN(amount) && amount > 0 && amount < 1000000) {
+      if (!isNaN(amount) && amount > 0 && amount < 10000000) {
         return amount;
       }
     }
@@ -150,85 +167,140 @@ function extractAmount(body: string): number | null {
 }
 
 function extractMerchantName(body: string): string | null {
-  // Special handling for JioHotstar subscription messages
-  if (/jiohotstar|jio.*hotstar/i.test(body)) {
-    return 'JioHotstar';
-  }
-  
-  // Special handling for Google Play subscriptions
-  if (/google\s*play/i.test(body)) {
-    return 'Google Play';
-  }
-  
-  // Special handling for Google (generic)
-  if (/\bgoogle\b/i.test(body) && !/google\s*play/i.test(body)) {
-    return 'Google';
-  }
-  
-  // Special handling for AWS
-  if (/\baws\b|aws\s*india/i.test(body)) {
-    return 'AWS India';
-  }
-  
-  // Special handling for Spotify
-  if (/\bspotify\b/i.test(body)) {
-    return 'Spotify';
-  }
-  
-  // Special handling for LIC
-  if (/\blic\b/i.test(body) && !/policy|insurance/i.test(body)) {
-    return 'LIC';
-  }
-  
   // Special handling for specific services (check before patterns)
-  if (/indane\s*gas/i.test(body)) {
-    return 'Indane Gas';
+  const specialServices = [
+    { pattern: /jiohotstar|jio.*hotstar/i, name: 'JioHotstar' },
+    { pattern: /google\s*play/i, name: 'Google Play' },
+    { pattern: /google\s*one/i, name: 'Google One' },
+    { pattern: /youtube\s*premium/i, name: 'YouTube Premium' },
+    { pattern: /youtube\s*music/i, name: 'YouTube Music' },
+    { pattern: /amazon\s*prime|prime\s*video/i, name: 'Amazon Prime' },
+    { pattern: /disney.*hotstar|hotstar.*disney|disney\+|disney\s+hotstar/i, name: 'Disney+ Hotstar' },
+    { pattern: /apple\s*music/i, name: 'Apple Music' },
+    { pattern: /apple\s*tv/i, name: 'Apple TV+' },
+    { pattern: /microsoft\s*365|office\s*365/i, name: 'Microsoft 365' },
+    { pattern: /adobe\s*creative\s*cloud|adobe/i, name: 'Adobe Creative Cloud' },
+    { pattern: /\bspotify\b/i, name: 'Spotify' },
+    { pattern: /spotify\s*premium/i, name: 'Spotify' },
+    { pattern: /\bnetflix\b/i, name: 'Netflix' },
+    { pattern: /netflix\s*subscription/i, name: 'Netflix' },
+    { pattern: /sony\s*liv|sonyliv/i, name: 'SonyLIV' },
+    { pattern: /\bzee\s*5|zee5\b/i, name: 'Zee5' },
+    { pattern: /\bvoot\b/i, name: 'Voot' },
+    { pattern: /mx\s*player/i, name: 'MX Player' },
+    { pattern: /gaana\s*plus|gaana/i, name: 'Gaana' },
+    { pattern: /cult\.?fit|cultfit/i, name: 'Cult.fit' },
+    { pattern: /swiggy\s*one/i, name: 'Swiggy One' },
+    { pattern: /zomato\s*gold/i, name: 'Zomato Gold' },
+    { pattern: /indane\s*gas|indane/i, name: 'Indane Gas' },
+    { pattern: /act\s*fibernet|act\s*fiber/i, name: 'ACT Fibernet' },
+    { pattern: /jio\s*fiber/i, name: 'Jio Fiber' },
+    { pattern: /airtel\s*fiber/i, name: 'Airtel Fiber' },
+    { pattern: /airtel\s*postpaid/i, name: 'Airtel Postpaid' },
+    { pattern: /vodafone\s*idea|vi\s*postpaid/i, name: 'Vodafone Idea' },
+    { pattern: /\bbescom\b/i, name: 'BESCOM' },
+    { pattern: /bescom\s*electricity/i, name: 'BESCOM' },
+    { pattern: /tata\s*power/i, name: 'Tata Power' },
+    { pattern: /hdfc\s*life/i, name: 'HDFC Life' },
+    { pattern: /icici\s*prudential/i, name: 'ICICI Prudential' },
+    { pattern: /max\s*bupa/i, name: 'Max Bupa' },
+    { pattern: /home\s*loan\s*emi/i, name: 'Home Loan' },
+    { pattern: /car\s*loan\s*emi/i, name: 'Car Loan' },
+    { pattern: /personal\s*loan\s*emi/i, name: 'Personal Loan' },
+    { pattern: /credit\s*card\s*autopay/i, name: 'Credit Card' },
+    { pattern: /\blic\b.*(?:insurance|premium|policy)/i, name: 'LIC' },
+    { pattern: /\baws\b|aws\s*india/i, name: 'AWS India' },
+    { pattern: /google\s*cloud|gcp/i, name: 'Google Cloud' },
+  ];
+  
+  for (const service of specialServices) {
+    if (service.pattern.test(body)) {
+      return service.name;
+    }
   }
   
-  if (/act\s*fibernet/i.test(body)) {
-    return 'ACT Fibernet';
-  }
-  
-  if (/apple\s*music/i.test(body)) {
-    return 'Apple Music';
-  }
-  
-  if (/jio\s*fiber/i.test(body)) {
-    return 'Jio Fiber';
-  }
-  
-  if (/airtel\s*postpaid/i.test(body)) {
-    return 'Airtel Postpaid';
+  // Handle plain "Google" (not Google Play/One/Cloud)
+  if (/\bgoogle\b/i.test(body) && !/google\s*(?:play|one|cloud)/i.test(body)) {
+    return 'Google';
   }
   
   // Common patterns for merchant names in UPI SMS
   const patterns = [
-    // "trf to X Refno" pattern (SBI and other banks) - HIGHEST PRIORITY
+    // "Your X autopay of" pattern - HIGHEST PRIORITY
+    /your\s+([A-Za-z0-9\s&.+-]+?)\s+autopay\s+(?:of|mandate\s+for)/i,
+    // "created for X from" pattern - HIGH PRIORITY for mandate creation
+    /(?:created|registered|set up|setup|approved)\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+(?:from|per|monthly|yearly|subscription)/i,
+    // "created for X from" pattern
+    /(?:created|registered)\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+from/i,
+    // "CREATED FOR RS.X TOWARDS X" pattern (uppercase)
+    /created\s+for\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+towards\s+([A-Za-z0-9\s&.+-]+?)(?:\s+from)/i,
+    // "set for X. A/c" pattern
+    /set\s+for\s+([A-Za-z0-9\s&.+-]+?)\.?\s+A\/c/i,
+    // "set up for Rs.X to X" pattern
+    /set\s+up\s+for\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+to\s+([A-Za-z0-9\s&.+-]+?)\s+(?:monthly|yearly)/i,
+    // "trf to X Refno" pattern (SBI and other banks)
     /trf\s+to\s+([A-Za-z0-9\s&.+-]+?)\s+(?:Refno|ref|upi)/i,
     // "towards X" pattern - improved to capture more variations
-    /(?:towards|for)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:is|from|for|rs|inr|₹|\.|a\/c|has|refer))/i,
-    // NACH debit pattern - extract from "trf to X Refno"
+    /(?:towards|for)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:is|from|for|per|rs|inr|₹|\.|a\/c|has|refer|valid|monthly|subscription))/i,
+    // "to X monthly/per month" pattern
+    /(?:to|for)\s+([A-Za-z0-9\s&.+-]+?)\s+(?:monthly|yearly|quarterly|weekly|per\s+month|subscription)/i,
+    // "for X via" pattern
+    /for\s+([A-Za-z0-9\s&.+-]+?)\s+via\s+(?:autopay|upi|mandate)/i,
+    // "enabled for X." pattern
+    /enabled\s+for\s+([A-Za-z0-9\s&.+-]+?)\.?\s+(?:Next|Debit|A\/c)/i,
+    // "Auto-debit of Rs.X enabled for X" pattern
+    /auto-debit\s+of\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+enabled\s+for\s+([A-Za-z0-9\s&.+-]+?)\./i,
+    // "to X@" pattern (VPA)
+    /to\s+([A-Za-z0-9\s&.+-]+?)@\w+\s+for/i,
+    // "mandate approved: Rs.X to X@" pattern
+    /mandate\s+approved:\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+to\s+([A-Za-z0-9\s&.+-]+?)@/i,
+    // "Your X subscription" pattern
+    /your\s+([A-Za-z0-9\s&.+-]+?)\s+subscription/i,
+    // "X subscription renewed" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+subscription\s+(?:renewed|active|via)/i,
+    // "X subscription renewed via autopay" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+subscription\s+renewed\s+via/i,
+    // "for X starting" pattern
+    /for\s+([A-Za-z0-9\s&.+-]+?)\s+starting/i,
+    // "Your X autopay of" pattern - MUST BE BEFORE generic patterns
+    /your\s+([A-Za-z0-9\s&.+-]+?)\s+autopay\s+(?:of|mandate)/i,
+    // "X autopay mandate for Rs" pattern
+    /your\s+([A-Za-z0-9\s&.+-]+?)\s+autopay\s+mandate\s+for/i,
+    // "Your X EMI" pattern
+    /your\s+([A-Za-z0-9\s&.+-]+?)\s+emi/i,
+    // "X EMI of" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+emi\s+of/i,
+    // "X EMI mandate" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+emi\s+mandate/i,
+    // "debited for X" pattern - for autopay/debited messages
+    /(?:debited|paid|processed)\s+for\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:on|via|from|policy|consumer|connection|loan|card|mobile|emi|bill|subscription|\.))/i,
+    // "for your X" pattern (loans)
+    /for\s+your\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:debited|from|loan|a\/c|emi))/i,
+    // "X bill payment" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+(?:bill|electricity\s+bill)\s+(?:payment|Rs|INR|₹)/i,
+    // "X policy premium" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+(?:insurance\s+)?(?:policy\s+)?premium/i,
+    // "X monthly bill" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+monthly\s+bill/i,
+    // "X booking payment" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+(?:booking|cylinder)\s+payment/i,
+    // "X Card autopay" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+card\s+autopay/i,
+    // "Your X autopay of" pattern
+    /your\s+([A-Za-z0-9\s&.+-]+?)\s+autopay\s+of/i,
+    // "X autopay mandate for" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+autopay\s+mandate\s+for/i,
+    // "X autopay of" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+autopay\s+of/i,
+    // "mandate for X Rs" pattern
+    /(?:mandate|autopay)\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+(?:rs\.?|inr|₹)/i,
+    // "registered successfully for X subscription" pattern
+    /registered\s+successfully\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+subscription/i,
+    // NACH debit pattern
     /debit.*?by\s+nach.*?(?:trf to|to)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:Refno|ref|upi|\.))/i,
-    // "to X monthly/yearly" pattern
-    /(?:to)\s+([A-Za-z0-9\s&.+-]+?)\s+(?:monthly|yearly|quarterly|weekly)/i,
-    // "for X" pattern - for autopay/debited messages
-    /(?:debited\s+for|autopay\s+for|enabled\s+for|set\s+up\s+for)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:on|has|bill|subscription|broadband|cylinder|monthly|\.))/i,
-    // "on X" pattern - for mandate creation
-    /(?:mandate|autopay).*?(?:on)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:for|from|starting))/i,
-    // "Regards, X" pattern - for EMI reminders and bank messages
-    /regards,?\s+([A-Za-z0-9\s&.+-]+?)(?:\s*$|\s*\.)/i,
-    // "X bill" pattern
-    /([A-Za-z0-9\s&.+-]+?)\s+(?:bill|monthly\s+bill)\s+(?:Rs|INR|₹)/i,
-    // "X EMI" pattern
-    /([A-Za-z0-9\s&.+-]+?)\s+(?:EMI|emi)\s+(?:of|Rs|INR|₹)/i,
-    // "via standing instruction" pattern
-    /(?:EMI|emi)\s+of\s+Rs[.\s]*\d+(?:,\d+)*(?:\.\d+)?\s+debited\s+via\s+standing\s+instruction/i,
-    /(?:to|at|for|paid to|transferred to)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:on|via|ref|upi|using|a\/c|ac\/|from))/i,
+    // Generic patterns (lower priority)
     /(?:autopay|mandate).*?(?:to|for)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:of|for|from|rs|inr|₹))/i,
     /([A-Za-z0-9\s&.+-]+?)\s+(?:autopay|mandate)/i,
-    /UPI.*?(?:to|at)\s+([A-Za-z0-9\s&.+-]+)/i,
-    /automatic payment.*?for\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:has|been))/i,
-    /debited.*?via autopay.*?for\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:on|via|ref|\.))/i,
   ];
 
   for (const pattern of patterns) {
@@ -238,26 +310,21 @@ function extractMerchantName(body: string): string | null {
       if (!name) continue;
       
       // Clean up the merchant name
-      const cleanName = name
+      let cleanName = name
         .replace(/\s+/g, ' ')
         .replace(/^(mr|ms|mrs|dr)\.?\s*/i, '')
+        .replace(/\s*\/-?\s*$/, '') // Remove trailing /-
+        .replace(/\s*\.\s*$/, '') // Remove trailing period
         .trim();
       
-      if (cleanName.length >= 2 && cleanName.length <= 50) {
+      // Skip if it's just numbers or too short
+      if (/^\d+$/.test(cleanName) || cleanName.length < 2) {
+        continue;
+      }
+      
+      if (cleanName.length >= 2 && cleanName.length <= 60) {
         return cleanName;
       }
-    }
-  }
-
-  // Fallback: Try to extract from common service names
-  const fallbackPatterns = [
-    /(?:Netflix|Spotify|Amazon|Hotstar|Disney|Youtube|Google|Apple|Prime|Swiggy|Zomato|Uber|Ola|LIC|Dropbox|ACT|Indane|Personal\s+Loan|AWS)/i,
-  ];
-
-  for (const pattern of fallbackPatterns) {
-    const match = body.match(pattern);
-    if (match) {
-      return match[0];
     }
   }
 
