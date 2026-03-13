@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
 export interface SubscriptionTier {
   isPro: boolean;
   maxSubscriptions: number;
+  maxAutopay: number;
   hasAds: boolean;
   hasAutopayTracking: boolean;
 }
@@ -31,8 +32,9 @@ export function getSubscriptionTier(): SubscriptionTier {
   return {
     isPro: isProActive,
     maxSubscriptions: isProActive ? Infinity : 3,
+    maxAutopay: isProActive ? Infinity : 3,
     hasAds: !isProActive,
-    hasAutopayTracking: isProActive,
+    hasAutopayTracking: true, // Now available for free users with limit
   };
 }
 

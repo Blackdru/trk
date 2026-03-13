@@ -80,6 +80,8 @@ export function calculateNextAutopayDate(
 export function enrichAutopayWithCycles(
   transactions: AutopayTransaction[]
 ): AutopayTransaction[] {
+  console.log(`[AutopayTracker] Enriching ${transactions.length} autopay transactions`);
+  
   // Group by merchant
   const byMerchant = new Map<string, AutopayTransaction[]>();
   
@@ -90,9 +92,11 @@ export function enrichAutopayWithCycles(
   });
 
   // Enrich each transaction
-  return transactions.map(txn => {
+  const enriched = transactions.map(txn => {
     const merchantTxns = byMerchant.get(txn.merchantName) || [];
     const cycle = detectAutopayCycle(txn.merchantName, merchantTxns);
+    
+    console.log(`[AutopayTracker] ${txn.merchantName}: ${merchantTxns.length} txns, cycle: ${cycle}`);
     
     if (!cycle) {
       return { ...txn, notificationEnabled: true };
@@ -106,6 +110,7 @@ export function enrichAutopayWithCycles(
     // Only set next payment date for the most recent transaction
     if (txn.id === mostRecent.id) {
       const nextPaymentDate = calculateNextAutopayDate(txn.date, cycle);
+      console.log(`[AutopayTracker] ${txn.merchantName} (most recent): next payment ${dayjs(nextPaymentDate).format('YYYY-MM-DD')}`);
       return {
         ...txn,
         billingCycle: cycle,
@@ -120,6 +125,9 @@ export function enrichAutopayWithCycles(
       notificationEnabled: true,
     };
   });
+  
+  console.log(`[AutopayTracker] Enriched ${enriched.filter(t => t.nextPaymentDate).length} transactions with nextPaymentDate`);
+  return enriched;
 }
 
 /**

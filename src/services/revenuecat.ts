@@ -165,7 +165,7 @@ export async function purchasePackage(pkg: PurchasesPackage): Promise<boolean> {
     } else {
       // Sometimes entitlement takes a moment to process, retry once
       console.log('[RevenueCat] Entitlement not immediately active, retrying...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise<void>(resolve => setTimeout(resolve, 1000));
       const retryInfo = await Purchases.getCustomerInfo();
       const retryIsPro = checkProEntitlement(retryInfo);
       
@@ -229,7 +229,7 @@ export async function restorePurchases(): Promise<boolean> {
         
         // Wait and retry once
         console.log('[RevenueCat] Retrying entitlement check...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise<void>(resolve => setTimeout(resolve, 2000));
         
         const retryInfo = await Purchases.getCustomerInfo();
         const retryIsPro = checkProEntitlement(retryInfo);

@@ -385,7 +385,7 @@ export function AddSubscriptionScreen({ onAdd, onAddAutopay }: Props) {
 
               {/* Transaction Date */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Transaction Date</Text>
+                <Text style={styles.label}>Last Transaction Date</Text>
                 <View style={styles.inputWrapper}>
                   <View style={styles.inputIconWrapper}>
                     <Icon name="calendar" size={18} color={colors.warning[500]} />
@@ -397,6 +397,12 @@ export function AddSubscriptionScreen({ onAdd, onAddAutopay }: Props) {
                     placeholder="YYYY-MM-DD"
                     placeholderTextColor={colors.text.tertiary}
                   />
+                </View>
+                <View style={styles.highlightBox}>
+                  <Icon name="info" size={14} color={colors.success[600]} />
+                  <Text style={styles.highlightText}>
+                    Enter the date of your last autopay transaction. The next due date will be automatically calculated based on the billing cycle.
+                  </Text>
                 </View>
               </View>
             </>
@@ -509,6 +515,24 @@ const styles = StyleSheet.create({
     ...typography.body.small,
     color: colors.text.secondary,
     flex: 1,
+  },
+  highlightBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.success[50],
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.success[200],
+  },
+  highlightText: {
+    ...typography.body.small,
+    color: colors.success[700],
+    flex: 1,
+    lineHeight: 18,
   },
   modeToggle: {
     flexDirection: 'row',

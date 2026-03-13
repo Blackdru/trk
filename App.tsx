@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { StatusBar, Alert, AppState, AppStateStatus, Modal } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
+import dayjs from 'dayjs';
 
 import { AppProvider, useAppContext } from './src/context/AppContext';
 import { useSmsSync } from './src/hooks/useSmsSync';
@@ -55,6 +56,7 @@ function AppContent() {
     setIsPro,
     setHasSmsPermission,
     addSubscription: addSubscriptionToContext,
+    addAutopayTransaction: addAutopayToContext,
     deleteSubscription: deleteSubscriptionFromContext,
     deleteAutopayTransaction: deleteAutopayFromContext,
     updateSubscription,
@@ -245,7 +247,28 @@ function AppContent() {
       const hasPermission = await checkSmsPermission();
       setHasSmsPermission(hasPermission);
 
-      if (hasPermission) {
+      // If no SMS permission, prompt user to grant it
+      if (!hasPermission) {
+        setTimeout(() => {
+          Alert.alert(
+            'SMS Permission Required',
+            'To automatically detect subscriptions from SMS, please grant SMS permission. This helps track your UPI payments.\n\nAll SMS processing happens locally on your device.',
+            [
+              { text: 'Not Now', style: 'cancel' },
+              { 
+                text: 'Grant Permission', 
+                onPress: async () => {
+                  const granted = await requestSmsPermission();
+                  if (granted) {
+                    setHasSmsPermission(true);
+                    await performSync();
+                  }
+                }
+              },
+            ]
+          );
+        }, 1000); // Delay to avoid showing immediately on app start
+      } else {
         await performSync();
       }
       
@@ -355,6 +378,45 @@ function AppContent() {
     return true;
   }, [subscriptions.length, isPro, addSubscriptionToContext]);
 
+  const handleAddAutopay = useCallback((autopay: AutopayTransaction): boolean => {
+    const tier = getSubscriptionTier();
+    
+    // Check if autopay tracking is available
+    if (!tier.hasAutopayTracking) {
+      Alert.alert(
+        'Pro Feature',
+        'Autopay tracking is a Pro feature. Upgrade to Pro to track unlimited autopay transactions.',
+        [
+          { text: 'Maybe Later', style: 'cancel' },
+          { text: 'Upgrade to Pro', onPress: () => setShowUpgradeModal(true) },
+        ]
+      );
+      return false;
+    }
+
+    console.log(`[App] Adding autopay transaction: ${autopay.merchantName}`);
+    
+    // Enrich the new autopay transaction with all existing ones to calculate nextPaymentDate
+    const allAutopay = [...autopayTransactions, autopay];
+    const enriched = enrichAutopayWithCycles(allAutopay);
+    
+    // Find the enriched version of the new transaction
+    const enrichedNew = enriched.find(t => t.id === autopay.id);
+    
+    if (enrichedNew) {
+      console.log(`[App] Enriched autopay: nextPaymentDate = ${enrichedNew.nextPaymentDate ? dayjs(enrichedNew.nextPaymentDate).format('YYYY-MM-DD') : 'none'}`);
+      addAutopayToContext(enrichedNew);
+    } else {
+      addAutopayToContext(autopay);
+    }
+    
+    if (!isPro) {
+      showInterstitialAd();
+    }
+    
+    return true;
+  }, [isPro, addAutopayToContext, autopayTransactions]);
+
   const handleDeleteSubscription = useCallback((id: string) => {
     Alert.alert('Delete Subscription', 'Are you sure you want to remove this subscription?', [
       { text: 'Cancel', style: 'cancel' },
@@ -401,6 +463,17 @@ function AppContent() {
       nextRenewalDate: nextRenewal,
     });
   }, [subscriptions, updateSubscription]);
+
+  const handleMarkAutopayPaid = useCallback((id: string) => {
+    // For autopay transactions, we just mark them as processed
+    // by removing any nextPaymentDate field if it exists
+    const autopay = autopayTransactions.find(t => t.id === id);
+    if (!autopay) return;
+    
+    console.log(`[App] Marking autopay as paid: ${autopay.merchantName}`);
+    // Autopay transactions don't have recurring dates, so we just acknowledge the payment
+    // The transaction remains in history but is marked as handled
+  }, [autopayTransactions]);
 
   const advanceAlarm = useCallback(() => {
     if (activeAlarmIndex + 1 < activeAlarms.length) {
@@ -464,9 +537,11 @@ function AppContent() {
           autopayTransactions={autopayTransactions}
           settings={settings}
           onAddSubscription={handleAddSubscription}
+          onAddAutopay={handleAddAutopay}
           onDeleteSubscription={handleDeleteSubscription}
           onDeleteAutopay={handleDeleteAutopay}
           onMarkSubscriptionPaid={handleMarkSubscriptionPaid}
+          onMarkAutopayPaid={handleMarkAutopayPaid}
           onSettingsChange={updateSettings}
           onRefresh={handleRefresh}
           refreshing={refreshing}

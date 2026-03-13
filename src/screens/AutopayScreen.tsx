@@ -103,7 +103,18 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
   );
   const last30DaysTotal = last30DaysTransactions.reduce((sum, t) => sum + t.amount, 0);
 
-  if (!tier.hasAutopayTracking) {
+  // Apply free tier limit
+  const displayTransactions = useMemo(() => {
+    if (tier.isPro) {
+      return processedTransactions;
+    }
+    // For free users, show only the first 3 transactions
+    return processedTransactions.slice(0, tier.maxAutopay);
+  }, [processedTransactions, tier.isPro, tier.maxAutopay]);
+
+  const isLimitReached = !tier.isPro && filteredTransactions.length > tier.maxAutopay;
+
+  if (false) { // Removed pro-only restriction
     return (
       <View style={styles.container}>
         <LinearGradient
@@ -362,9 +373,34 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
             <Icon name="list" size={18} color={colors.success[600]} />
             <Text style={styles.sectionHead}>Transactions</Text>
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{processedTransactions.length}</Text>
+              <Text style={styles.badgeText}>
+                {tier.isPro ? processedTransactions.length : `${displayTransactions.length}/${tier.maxAutopay}`}
+              </Text>
             </View>
           </View>
+
+          {/* Free tier limit banner */}
+          {isLimitReached && (
+            <Card style={{ marginBottom: spacing.md }}>
+              <View style={styles.limitBanner}>
+                <View style={styles.limitIcon}>
+                  <Icon name="lock" size={20} color={colors.warning[600]} />
+                </View>
+                <View style={styles.limitContent}>
+                  <Text style={styles.limitTitle}>
+                    Showing {tier.maxAutopay} of {filteredTransactions.length} transactions
+                  </Text>
+                  <Text style={styles.limitText}>
+                    Upgrade to Pro for unlimited autopay tracking
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={onUpgradePress} style={styles.limitButton}>
+                  <Text style={styles.limitButtonText}>Upgrade</Text>
+                  <Icon name="arrow-right" size={14} color={colors.primary[600]} />
+                </TouchableOpacity>
+              </View>
+            </Card>
+          )}
 
           {processedTransactions.length === 0 ? (
             <Card>
@@ -382,12 +418,12 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
             </Card>
           ) : (
             <Card padding="sm">
-              {processedTransactions.map((txn, index) => (
+              {displayTransactions.map((txn, index) => (
                 <View 
                   key={txn.id} 
                   style={[
                     styles.txnItem,
-                    index === processedTransactions.length - 1 && styles.txnItemLast,
+                    index === displayTransactions.length - 1 && styles.txnItemLast,
                   ]}
                 >
                   <SubscriptionLogo merchantName={txn.merchantName} size={40} />
@@ -399,9 +435,18 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
                           {txn.paymentType}
                         </Text>
                       </View>
-                      <Text style={styles.txnDate}>
-                        {dayjs(txn.date).format('MMM D, YYYY')}
-                      </Text>
+                      {txn.nextPaymentDate ? (
+                        <View style={styles.nextDueBadge}>
+                          <Icon name="calendar" size={10} color={colors.warning[600]} />
+                          <Text style={styles.nextDueText}>
+                            Next: {dayjs(txn.nextPaymentDate).format('MMM D, YYYY')}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.txnDate}>
+                          {dayjs(txn.date).format('MMM D, YYYY')}
+                        </Text>
+                      )}
                       {txn.category && (
                         <View style={[styles.txnCatBadge, { backgroundColor: getCategoryColor(txn.category) + '20' }]}>
                           <Icon name={getCategoryIcon(txn.category)} size={10} color={getCategoryColor(txn.category)} />
@@ -718,6 +763,21 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
     fontSize: 11,
   },
+  nextDueBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.warning[100],
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.xs,
+  },
+  nextDueText: {
+    ...typography.label.small,
+    color: colors.warning[700],
+    fontSize: 9,
+    fontWeight: '600',
+  },
   txnCatBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -824,5 +884,45 @@ const styles = StyleSheet.create({
     ...typography.body.medium,
     fontWeight: '600',
     color: colors.text.inverse,
+  },
+  limitBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  limitIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.warning[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  limitContent: {
+    flex: 1,
+  },
+  limitTitle: {
+    ...typography.body.medium,
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  limitText: {
+    ...typography.body.small,
+    color: colors.text.secondary,
+  },
+  limitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.primary[50],
+  },
+  limitButtonText: {
+    ...typography.body.small,
+    fontWeight: '600',
+    color: colors.primary[600],
   },
 });

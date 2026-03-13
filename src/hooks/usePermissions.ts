@@ -68,7 +68,7 @@ export function usePermissions() {
         Alert.alert(
           'Permission Denied',
           'SMS access is needed for automatic subscription detection. You can still add subscriptions manually.\n\n' +
-          'To enable later, go to Settings > Apps > UPI Subscription Tracker > Permissions.',
+          'To enable later, go to Settings > Apps > UPI Autopay Tracker > Permissions.',
           [{ text: 'OK' }]
         );
       }

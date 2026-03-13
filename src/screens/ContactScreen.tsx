@@ -66,7 +66,7 @@ export function ContactScreen({ onClose }: Props) {
           name: name.trim(),
           email: email.trim(),
           mobile: mobile.trim() || undefined,
-          appName: 'UPI Subscription Tracker',
+          appName: 'UPI Autopay Tracker',
           message: message.trim(),
         }),
       });
