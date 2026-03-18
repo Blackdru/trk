@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { StatusBar, Alert, AppState, AppStateStatus, Modal } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
+import NetInfo from '@react-native-community/netinfo';
 import dayjs from 'dayjs';
 
 import { AppProvider, useAppContext } from './src/context/AppContext';
@@ -10,6 +11,7 @@ import { usePermissions } from './src/hooks/usePermissions';
 import { UpgradeScreen, WelcomeScreen } from './src/screens';
 import { BottomTabNavigator } from './src/navigation/BottomTabNavigator';
 import { PaymentAlarmScreen } from './src/components/PaymentAlarmScreen';
+import { OfflineScreen } from './src/components/OfflineScreen';
 import type { Subscription, AutopayTransaction } from './src/types';
 import { subscribeSmsReceived } from './src/native/SmsModule';
 import { parseSms } from './src/utils/smsParser';
@@ -77,6 +79,7 @@ function AppContent() {
     twoDays: Subscription[];
   }>({ today: [], tomorrow: [], twoDays: [] });
   const [showRenewalAlert, setShowRenewalAlert] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
   // Register callback for pro status changes
   useEffect(() => {
@@ -90,6 +93,27 @@ function AppContent() {
       }
     });
   }, [setIsPro, setSubscriptions]);
+
+  // Monitor network connectivity
+  useEffect(() => {
+    console.log('[App] Setting up network monitoring');
+    
+    const unsubscribe = NetInfo.addEventListener(state => {
+      const connected = state.isConnected && state.isInternetReachable !== false;
+      console.log('[App] Network status:', connected ? 'online' : 'offline');
+      setIsOnline(connected);
+    });
+
+    // Check initial network status
+    NetInfo.fetch().then(state => {
+      const connected = state.isConnected && state.isInternetReachable !== false;
+      setIsOnline(connected);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // Periodic SMS sync
   useEffect(() => {
@@ -526,6 +550,11 @@ function AppContent() {
         />
       </SafeAreaProvider>
     );
+  }
+
+  // Block app if offline
+  if (!isOnline) {
+    return <OfflineScreen />;
   }
 
   return (
