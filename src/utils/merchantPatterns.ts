@@ -104,6 +104,36 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'subscription',
     isSubscription: true,
   },
+  {
+    name: 'Story TV',
+    patterns: [/story\s*tv/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Colors',
+    patterns: [/\bcolors\b.*(?:tv|channel|subscription)/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Star Plus',
+    patterns: [/star\s*plus/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Sun NXT',
+    patterns: [/sun\s*nxt/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Hoichoi',
+    patterns: [/hoichoi/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
   
   // Cloud Storage & Software
   {

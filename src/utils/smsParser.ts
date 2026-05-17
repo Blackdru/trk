@@ -55,6 +55,30 @@ export function parseSms(sms: RawSms): ParsedTransaction | null {
   // Extract amount (handles Rs., Rs, INR, ₹ formats)
   const amount = extractAmount(body);
   
+  // Extract due date if present (for reminders and scheduled payments)
+  const dueDate = extractDueDate(body);
+  
+  // Special case: Payment reminders without amount but with due date
+  // These are important for tracking upcoming payments
+  if (!amount && dueDate) {
+    const merchantName = extractMerchantName(body);
+    if (!merchantName) {
+      console.log('[SmsParser] Could not extract merchant from reminder:', body.substring(0, 100));
+      return null;
+    }
+    
+    console.log(`[SmsParser] Payment reminder: ${merchantName} - Due on ${new Date(dueDate).toLocaleDateString()} (${paymentType})`);
+    
+    return {
+      id: `${date}-${merchantName}-reminder`,
+      merchantName,
+      amount: 0, // Use 0 for reminders without amount
+      date: dueDate, // Use due date as the transaction date
+      paymentType,
+      rawSms: body,
+    };
+  }
+  
   // Special case: Subscription confirmation without amount (e.g., JioHotstar activation)
   // If it's a subscription type and has duration but no amount, use 0 as placeholder
   if (!amount) {
@@ -88,13 +112,16 @@ export function parseSms(sms: RawSms): ParsedTransaction | null {
     return null;
   }
 
+  // Use due date if available (for scheduled payments), otherwise use SMS date
+  const transactionDate = dueDate || date;
+
   console.log(`[SmsParser] Parsed: ${merchantName} - ₹${amount} (${paymentType})`);
 
   return {
-    id: `${date}-${merchantName}-${amount}`,
+    id: `${transactionDate}-${merchantName}-${amount}`,
     merchantName,
     amount,
-    date,
+    date: transactionDate,
     paymentType,
     rawSms: body,
   };
@@ -166,9 +193,98 @@ function extractAmount(body: string): number | null {
   return null;
 }
 
+function extractDueDate(body: string): number | null {
+  // Patterns for extracting due dates from SMS
+  const patterns = [
+    // "due on 05 April 2026" or "is due on 05 April 2026"
+    /(?:is\s+)?due\s+on\s+(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/i,
+    // "due on 05-Mar-26" or "is due on 05-Mar-26"
+    /(?:is\s+)?due\s+on\s+(\d{1,2})-([A-Za-z]{3}|\d{2})-(\d{2,4})/i,
+    // "scheduled on .03/04/26" or "scheduled on 03/04/26" (DD/MM/YY format)
+    /scheduled\s+on\s+\.?(\d{1,2})\/(\d{1,2})\/(\d{2,4})/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = body.match(pattern);
+    if (match) {
+      try {
+        let day: number, month: number, year: number;
+        
+        if (pattern.source.includes('scheduled')) {
+          // Format: DD/MM/YY or DD/MM/YYYY (Indian format)
+          day = parseInt(match[1], 10);
+          month = parseInt(match[2], 10) - 1; // JS months are 0-indexed
+          year = parseInt(match[3], 10);
+          // Handle 2-digit year
+          if (year < 100) {
+            year = year + 2000;
+          }
+        } else if (match[2].match(/^[A-Za-z]+$/)) {
+          // Format: DD Month YYYY or DD-Mon-YY
+          day = parseInt(match[1], 10);
+          month = parseMonth(match[2]);
+          year = parseInt(match[3], 10);
+          // Handle 2-digit year for month name format too!
+          if (year < 100) {
+            year = year + 2000;
+          }
+        } else {
+          // Format: DD-MM-YY or DD-MM-YYYY
+          day = parseInt(match[1], 10);
+          const monthStr = match[2];
+          if (monthStr.match(/^[A-Za-z]{3}$/)) {
+            month = parseMonth(monthStr);
+          } else {
+            month = parseInt(monthStr, 10) - 1;
+          }
+          year = parseInt(match[3], 10);
+          // Handle 2-digit year - assume 20xx for years 00-99
+          if (year < 100) {
+            year = year + 2000;
+          }
+        }
+        
+        if (month === -1) continue; // Invalid month
+        
+        const dueDate = new Date(year, month, day);
+        if (!isNaN(dueDate.getTime())) {
+          return dueDate.getTime();
+        }
+      } catch (e) {
+        console.log('[SmsParser] Error parsing due date:', e);
+        continue;
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseMonth(monthStr: string): number {
+  const months: Record<string, number> = {
+    'jan': 0, 'january': 0,
+    'feb': 1, 'february': 1,
+    'mar': 2, 'march': 2,
+    'apr': 3, 'april': 3,
+    'may': 4,
+    'jun': 5, 'june': 5,
+    'jul': 6, 'july': 6,
+    'aug': 7, 'august': 7,
+    'sep': 8, 'september': 8,
+    'oct': 9, 'october': 9,
+    'nov': 10, 'november': 10,
+    'dec': 11, 'december': 11,
+  };
+  
+  return months[monthStr.toLowerCase()] ?? -1;
+}
+
 function extractMerchantName(body: string): string | null {
   // Special handling for specific services (check before patterns)
   const specialServices = [
+    { pattern: /story\s*tv/i, name: 'Story TV' },
+    { pattern: /true\s+credits|true\s+balance/i, name: 'True Credits' },
+    { pattern: /moneyview/i, name: 'Moneyview' },
     { pattern: /jiohotstar|jio.*hotstar/i, name: 'JioHotstar' },
     { pattern: /google\s*play/i, name: 'Google Play' },
     { pattern: /google\s*one/i, name: 'Google One' },
@@ -226,6 +342,16 @@ function extractMerchantName(body: string): string | null {
   
   // Common patterns for merchant names in UPI SMS
   const patterns = [
+    // "payment of Rs.X for X has been setup" pattern - HIGHEST PRIORITY for Paytm-style messages
+    /payment\s+of\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+has\s+been\s+setup/i,
+    // "of Rs.X for X has been" pattern
+    /of\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+has\s+been/i,
+    // "UPI AutoPay for X debit" pattern - HIGH PRIORITY for reminders
+    /upi\s+autopay\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+debit/i,
+    // "Your X EMI is due" pattern - HIGH PRIORITY
+    /your\s+([A-Za-z0-9\s&.+-]+?)\s+emi\s+is\s+due/i,
+    // "Pay on X app" pattern
+    /pay\s+on\s+(?:the\s+)?([A-Za-z0-9\s&.+-]+?)\s+app/i,
     // "Your X autopay of" pattern - HIGHEST PRIORITY
     /your\s+([A-Za-z0-9\s&.+-]+?)\s+autopay\s+(?:of|mandate\s+for)/i,
     // "created for X from" pattern - HIGH PRIORITY for mandate creation

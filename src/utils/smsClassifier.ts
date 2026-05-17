@@ -21,6 +21,8 @@ export interface SmsFeatures {
   hasQuarterlyKeyword: boolean;
   hasWeeklyKeyword: boolean;
   hasDurationDays: boolean;
+  hasDueDateKeyword: boolean;
+  hasScheduledKeyword: boolean;
   
   // Merchant features
   merchantIsAllCaps: boolean;
@@ -75,6 +77,8 @@ export function extractFeatures(sms: RawSms): SmsFeatures {
   const hasQuarterlyKeyword = /quarterly|per quarter/i.test(body);
   const hasWeeklyKeyword = /weekly|per week/i.test(body);
   const hasDurationDays = /\d+\s*days/i.test(body);
+  const hasDueDateKeyword = /due\s+(?:date|on)|is\s+due|emi\s+is\s+due|payment\s+is\s+due/i.test(body);
+  const hasScheduledKeyword = /scheduled\s+on|scheduled\s+for|debit\s+of.*scheduled/i.test(body);
   
   // Extract merchant name for analysis
   const merchantName = extractMerchantForAnalysis(body);
@@ -115,6 +119,8 @@ export function extractFeatures(sms: RawSms): SmsFeatures {
     hasQuarterlyKeyword,
     hasWeeklyKeyword,
     hasDurationDays,
+    hasDueDateKeyword,
+    hasScheduledKeyword,
     merchantIsAllCaps,
     merchantHasMultipleWords,
     merchantIsKnownService,
@@ -163,12 +169,58 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
     };
   }
   
-  // Rule 3: EMI detection
-  if (features.hasEmiKeyword && features.hasAmount) {
+  // Rule 2.5: Reject loan-related transactions (EMI payments and disbursements)
+  // EMI payment confirmations: lenders confirming they received payment
+  if (features.hasEmiKeyword && body && /(?:emi|loan).*(?:received|paid|credited|successful)/i.test(body)) {
+    return {
+      type: 'p2p-transfer',
+      confidence: 0.95,
+      reason: 'Loan EMI payment confirmation (not a subscription)'
+    };
+  }
+  
+  // Loan disbursement: when loan amount is credited to your account
+  if (body && /loan.*(?:disburs|credit|sanction|approv).*(?:credited|transferred|deposited)/i.test(body)) {
+    return {
+      type: 'p2p-transfer',
+      confidence: 0.95,
+      reason: 'Loan disbursement (not a subscription)'
+    };
+  }
+  
+  // Loan disbursement alternative patterns
+  if (body && /(?:personal|home|car|education|business)?\s*loan.*(?:amount|of\s+rs)/i.test(body) && /credited|disbursed|transferred|deposited/i.test(body)) {
+    return {
+      type: 'p2p-transfer',
+      confidence: 0.95,
+      reason: 'Loan disbursement (not a subscription)'
+    };
+  }
+  
+  // Rule 3: EMI detection (with or without amount if due date present)
+  if (features.hasEmiKeyword && (features.hasAmount || features.hasDueDateKeyword)) {
     return {
       type: 'emi',
-      confidence: 0.90,
-      reason: 'EMI keyword with amount'
+      confidence: features.hasAmount ? 0.90 : 0.85,
+      reason: features.hasAmount ? 'EMI keyword with amount' : 'EMI due date reminder'
+    };
+  }
+  
+  // Rule 3.5: Scheduled payment reminders (UPI AutoPay, EMI, etc.)
+  if (features.hasScheduledKeyword && (features.hasAmount || features.hasDueDateKeyword)) {
+    return {
+      type: 'autopay',
+      confidence: 0.88,
+      reason: 'Scheduled payment reminder'
+    };
+  }
+  
+  // Rule 3.6: Due date reminders for payments
+  if (features.hasDueDateKeyword && !features.merchantLooksLikePerson) {
+    return {
+      type: 'autopay',
+      confidence: 0.82,
+      reason: 'Payment due date reminder'
     };
   }
   
@@ -337,6 +389,7 @@ function isKnownService(merchantName: string): boolean {
     'netflix', 'spotify', 'amazon', 'prime', 'hotstar', 'disney',
     'youtube', 'apple', 'jiohotstar', 'jio hotstar',
     'zee5', 'sonyliv', 'voot', 'mx player', 'eros now',
+    'story tv', 'colors', 'star plus', 'sun nxt', 'hoichoi',
     
     // Cloud & Software (consumer-focused only)
     'microsoft', 'adobe', 'dropbox', 'github',

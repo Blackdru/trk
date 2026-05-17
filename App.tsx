@@ -369,14 +369,31 @@ function AppContent() {
     if (hasSmsPermission) {
       await performSync();
     } else {
+      setRefreshing(false);
       Alert.alert(
         'SMS Permission Required',
-        'Please grant SMS permission to detect subscriptions automatically.'
+        'Please grant SMS permission to detect subscriptions automatically.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Grant Permission', 
+            onPress: async () => {
+              const granted = await requestSmsPermission();
+              if (granted) {
+                setHasSmsPermission(true);
+                setRefreshing(true);
+                await performSync();
+                setRefreshing(false);
+              }
+            }
+          },
+        ]
       );
+      return;
     }
     
     setRefreshing(false);
-  }, [hasSmsPermission, performSync]);
+  }, [hasSmsPermission, performSync, requestSmsPermission]);
 
   const handleAddSubscription = useCallback((sub: Subscription): boolean => {
     const tier = getSubscriptionTier();
@@ -542,9 +559,19 @@ function AppContent() {
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" />
         <WelcomeScreen
-          onComplete={() => {
+          onComplete={async () => {
             setWelcomeCompleted();
             setShowWelcome(false);
+            
+            // Request SMS permission immediately after welcome screen
+            setTimeout(async () => {
+              const granted = await requestSmsPermission();
+              if (granted) {
+                setHasSmsPermission(true);
+                // Perform initial sync after permission is granted
+                await performSync();
+              }
+            }, 500); // Small delay to let the UI settle
           }}
           onRequestPermission={requestSmsPermission}
         />

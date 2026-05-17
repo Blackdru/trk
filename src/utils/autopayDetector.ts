@@ -57,6 +57,20 @@ function categorizeAutopay(transaction: ParsedTransaction): string {
     return 'other';
   }
 
+  // Loans (EMI) - check FIRST to catch True Credits, Moneyview, etc.
+  const loanKeywords = [
+    'loan', 'emi', 'home loan', 'car loan', 'personal loan',
+    'credit card', 'true credits', 'true balance', 'moneyview',
+    'money view', 'bajaj finserv', 'tata capital', 'fullerton',
+    'lending', 'finance', 'fintech'
+  ];
+  
+  for (const keyword of loanKeywords) {
+    if (merchantLower.includes(keyword) || bodyLower.includes(keyword)) {
+      return 'loan';
+    }
+  }
+
   // Subscription services (streaming, cloud storage, software, etc.)
   // CHECK THIS BEFORE INSURANCE to avoid false positives with "premium" keyword
   const subscriptionKeywords = [
@@ -65,6 +79,7 @@ function categorizeAutopay(transaction: ParsedTransaction): string {
     'youtube premium', 'youtube music', 'youtube', 'apple music', 'apple tv', 'apple one',
     'zee5', 'sonyliv', 'voot', 'mx player', 'eros now', 'alt balaji',
     'jio cinema', 'jio saavn', 'gaana', 'wynk', 'jiohotstar', 'jio hotstar',
+    'story tv', 'colors', 'star plus', 'sun nxt', 'hoichoi',
     
     // Cloud & Software (consumer-focused only)
     'google one', 'google workspace', 'icloud', 'dropbox', 'onedrive',
@@ -115,18 +130,6 @@ function categorizeAutopay(transaction: ParsedTransaction): string {
   for (const keyword of utilityKeywords) {
     if (merchantLower.includes(keyword) || bodyLower.includes(keyword)) {
       return 'utility';
-    }
-  }
-
-  // Loans (EMI) - check before telecom to catch bank names properly
-  const loanKeywords = [
-    'loan', 'emi', 'home loan', 'car loan', 'personal loan',
-    'credit card'
-  ];
-  
-  for (const keyword of loanKeywords) {
-    if (merchantLower.includes(keyword) || bodyLower.includes(keyword)) {
-      return 'loan';
     }
   }
 

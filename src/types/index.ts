@@ -30,6 +30,7 @@ export interface Subscription {
   monthlyEquivalent: number;
   notificationEnabled: boolean;
   transactions?: ParsedTransaction[];
+  paymentApp?: string; // App used for payment (e.g., 'phonepe', 'gpay', 'paytm', 'playstore', etc.)
 }
 
 export interface AutopayTransaction {
@@ -44,6 +45,7 @@ export interface AutopayTransaction {
   nextPaymentDate?: number; // Expected next payment date for recurring autopay
   billingCycle?: BillingCycle; // Detected billing cycle for recurring autopay
   notificationEnabled?: boolean; // Whether to notify for this autopay
+  paymentApp?: string; // App used for payment (e.g., 'phonepe', 'gpay', 'paytm', 'sbi', etc.)
 }
 
 export interface AppSettings {

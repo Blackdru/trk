@@ -11,11 +11,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import Icon from 'react-native-vector-icons/Feather';
 import LinearGradient from 'react-native-linear-gradient';
-import type { Subscription } from '../types';
+import type { Subscription, AutopayTransaction } from '../types';
 import { SubscriptionLogo } from '../components/SubscriptionLogo';
 import { BannerAdComponent } from '../components/BannerAdComponent';
 import { Card } from '../components/Card';
+import { CancellationModal } from '../components/CancellationModal';
 import { getSubscriptionTier } from '../services/subscriptionService';
+import { useCancellationTracking } from '../hooks/useCancellationTracking';
 import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
 
 interface Props {
@@ -54,6 +56,40 @@ export function SubscriptionsScreen({ subscriptions, onDelete }: Props) {
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
+  
+  const { markAsCancelled, isCancelled } = useCancellationTracking();
+
+  const handleCancelSubscription = (subscription: Subscription) => {
+    setSelectedSubscription(subscription);
+    setShowCancellationModal(true);
+  };
+
+  const handleCancellationComplete = (transactionId: string, cancelled: boolean) => {
+    if (cancelled) {
+      // Delete the subscription instead of just marking as cancelled
+      onDelete(transactionId);
+    }
+    setShowCancellationModal(false);
+    setSelectedSubscription(null);
+  };
+
+  // Convert Subscription to AutopayTransaction format for modal
+  const subscriptionToTransaction = (sub: Subscription): AutopayTransaction => ({
+    id: sub.id,
+    merchantName: sub.merchantName,
+    amount: sub.amount,
+    date: sub.lastPaymentDate || Date.now(),
+    paymentType: 'Autopay',
+    status: 'active',
+    rawSms: `Subscription: ${sub.merchantName}`,
+    nextPaymentDate: sub.nextRenewalDate,
+    billingCycle: sub.billingCycle,
+    // For subscriptions screen, default to Play Store if no payment app specified
+    // This makes sense since most app subscriptions are managed through Play Store
+    paymentApp: sub.paymentApp || 'playstore',
+  });
 
   // Filter and sort subscriptions
   const filteredAndSortedSubscriptions = useMemo(() => {
@@ -101,86 +137,155 @@ export function SubscriptionsScreen({ subscriptions, onDelete }: Props) {
     return { totalMonthly, byCycle };
   }, [subscriptions]);
 
-  const renderGridItem = ({ item }: { item: Subscription }) => (
-    <View style={styles.gridCard}>
-      <Card padding="sm">
-        <View style={styles.gridCardHeader}>
-          <SubscriptionLogo merchantName={item.merchantName} size={48} />
-          <TouchableOpacity
-            style={styles.gridDeleteButton}
-            onPress={() => onDelete(item.id)}
-            activeOpacity={0.7}
-          >
-            <Icon name="trash-2" size={14} color={colors.error[500]} />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.gridMerchantName} numberOfLines={1}>{item.merchantName}</Text>
-        <View style={styles.gridPriceRow}>
-          <Text style={styles.gridPrice}>₹{item.amount}</Text>
-          <View style={[styles.gridCycleBadge, { backgroundColor: getCycleColor(item.billingCycle) + '20' }]}>
-            <Icon name={getCycleIcon(item.billingCycle)} size={10} color={getCycleColor(item.billingCycle)} />
-          </View>
-        </View>
-        {item.billingCycle !== 'monthly' && (
-          <Text style={styles.gridMonthlyEquiv}>₹{item.monthlyEquivalent.toFixed(0)}/mo</Text>
-        )}
-        <View style={styles.gridDateRow}>
-          <Icon name="calendar" size={10} color={colors.text.tertiary} />
-          <Text style={styles.gridDate}>{dayjs(item.nextRenewalDate).format('MMM D')}</Text>
-        </View>
-      </Card>
-    </View>
-  );
+  const renderGridItem = ({ item }: { item: Subscription }) => {
+    const isCancelledSub = isCancelled(item.id);
+    const isUrgent = item.nextRenewalDate 
+      ? (item.nextRenewalDate - Date.now()) < 2 * 24 * 60 * 60 * 1000
+      : false;
 
-  const renderListItem = ({ item }: { item: Subscription }) => (
-    <View style={styles.listCard}>
-      <Card padding="md">
-        <View style={styles.listCardContent}>
-          <SubscriptionLogo merchantName={item.merchantName} size={56} />
-          <View style={styles.listCardInfo}>
-            <Text style={styles.listMerchantName} numberOfLines={1}>{item.merchantName}</Text>
-            <View style={styles.listMetaRow}>
-              <View style={[styles.listCycleBadge, { backgroundColor: getCycleColor(item.billingCycle) + '20' }]}>
-                <Icon name={getCycleIcon(item.billingCycle)} size={11} color={getCycleColor(item.billingCycle)} />
-                <Text style={[styles.listCycleText, { color: getCycleColor(item.billingCycle) }]}>
-                  {item.billingCycle}
-                </Text>
-              </View>
-              <View style={[styles.listSourceBadge, { backgroundColor: item.source === 'sms' ? colors.success[100] : colors.gray[100] }]}>
-                <Icon
-                  name={item.source === 'sms' ? 'zap' : 'edit-3'}
-                  size={10}
-                  color={item.source === 'sms' ? colors.success[700] : colors.text.tertiary}
-                />
-                <Text style={[styles.listSourceText, { color: item.source === 'sms' ? colors.success[700] : colors.text.tertiary }]}>
-                  {item.source === 'sms' ? 'Auto' : 'Manual'}
-                </Text>
-              </View>
+    return (
+      <View style={styles.gridCard}>
+        <Card padding="sm" style={[
+          isUrgent && !isCancelledSub && styles.gridCardUrgent,
+          isCancelledSub && styles.gridCardCancelled,
+        ]}>
+          {isUrgent && !isCancelledSub && (
+            <View style={styles.urgentStripSmall}>
+              <Icon name="alert-circle" size={10} color={colors.warning[700]} />
+              <Text style={styles.urgentStripTextSmall}>Due soon</Text>
             </View>
-            <View style={styles.listDateRow}>
-              <Icon name="calendar" size={12} color={colors.text.tertiary} />
-              <Text style={styles.listDate}>Next: {dayjs(item.nextRenewalDate).format('MMM D, YYYY')}</Text>
+          )}
+          {isCancelledSub && (
+            <View style={styles.cancelledStripSmall}>
+              <Icon name="check-circle" size={10} color={colors.success[700]} />
+              <Text style={styles.cancelledStripTextSmall}>Cancelled</Text>
             </View>
-          </View>
-          <View style={styles.listCardRight}>
-            <View style={styles.listPriceBox}>
-              <Text style={styles.listPrice}>₹{item.amount}</Text>
-              {item.billingCycle !== 'monthly' && (
-                <Text style={styles.listMonthlyEquiv}>₹{item.monthlyEquivalent.toFixed(0)}/mo</Text>
+          )}
+          <View style={styles.gridCardHeader}>
+            <SubscriptionLogo merchantName={item.merchantName} size={48} />
+            <View style={styles.gridActions}>
+              {!isCancelledSub && (
+                <TouchableOpacity
+                  style={styles.gridCancelButton}
+                  onPress={() => handleCancelSubscription(item)}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="x-circle" size={12} color={colors.warning[600]} />
+                </TouchableOpacity>
               )}
+              <TouchableOpacity
+                style={styles.gridDeleteButton}
+                onPress={() => onDelete(item.id)}
+                activeOpacity={0.7}
+              >
+                <Icon name="trash-2" size={12} color={colors.error[500]} />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.listDeleteButton}
-              onPress={() => onDelete(item.id)}
-              activeOpacity={0.7}
-            >
-              <Icon name="trash-2" size={16} color={colors.error[500]} />
-            </TouchableOpacity>
           </View>
-        </View>
-      </Card>
-    </View>
-  );
+          <Text style={styles.gridMerchantName} numberOfLines={1}>{item.merchantName}</Text>
+          <View style={styles.gridPriceRow}>
+            <Text style={styles.gridPrice}>₹{item.amount}</Text>
+            <View style={[styles.gridCycleBadge, { backgroundColor: getCycleColor(item.billingCycle) + '20' }]}>
+              <Icon name={getCycleIcon(item.billingCycle)} size={10} color={getCycleColor(item.billingCycle)} />
+            </View>
+          </View>
+          {item.billingCycle !== 'monthly' && (
+            <Text style={styles.gridMonthlyEquiv}>₹{item.monthlyEquivalent.toFixed(0)}/mo</Text>
+          )}
+          <View style={styles.gridDateRow}>
+            <Icon name="calendar" size={10} color={colors.text.tertiary} />
+            <Text style={styles.gridDate}>{dayjs(item.nextRenewalDate).format('MMM D')}</Text>
+          </View>
+        </Card>
+      </View>
+    );
+  };
+
+  const renderListItem = ({ item }: { item: Subscription }) => {
+    const isCancelledSub = isCancelled(item.id);
+    const isUrgent = item.nextRenewalDate 
+      ? (item.nextRenewalDate - Date.now()) < 2 * 24 * 60 * 60 * 1000
+      : false;
+
+    return (
+      <View style={styles.listCard}>
+        <Card padding="md" style={[
+          isUrgent && !isCancelledSub && styles.listCardUrgent,
+          isCancelledSub && styles.listCardCancelled,
+        ]}>
+          {isUrgent && !isCancelledSub && (
+            <View style={styles.urgentStrip}>
+              <Icon name="alert-circle" size={12} color={colors.warning[700]} />
+              <Text style={styles.urgentStripText}>
+                Payment due {dayjs(item.nextRenewalDate).fromNow()}
+              </Text>
+            </View>
+          )}
+          {isCancelledSub && (
+            <View style={styles.cancelledStrip}>
+              <Icon name="check-circle" size={12} color={colors.success[700]} />
+              <Text style={styles.cancelledStripText}>Cancellation Initiated</Text>
+            </View>
+          )}
+          <View style={styles.listCardContent}>
+            <SubscriptionLogo merchantName={item.merchantName} size={56} />
+            <View style={styles.listCardInfo}>
+              <Text style={styles.listMerchantName} numberOfLines={1}>{item.merchantName}</Text>
+              <View style={styles.listMetaRow}>
+                <View style={[styles.listCycleBadge, { backgroundColor: getCycleColor(item.billingCycle) + '20' }]}>
+                  <Icon name={getCycleIcon(item.billingCycle)} size={11} color={getCycleColor(item.billingCycle)} />
+                  <Text style={[styles.listCycleText, { color: getCycleColor(item.billingCycle) }]}>
+                    {item.billingCycle}
+                  </Text>
+                </View>
+                <View style={[styles.listSourceBadge, { backgroundColor: item.source === 'sms' ? colors.success[100] : colors.gray[100] }]}>
+                  <Icon
+                    name={item.source === 'sms' ? 'zap' : 'edit-3'}
+                    size={10}
+                    color={item.source === 'sms' ? colors.success[700] : colors.text.tertiary}
+                  />
+                  <Text style={[styles.listSourceText, { color: item.source === 'sms' ? colors.success[700] : colors.text.tertiary }]}>
+                    {item.source === 'sms' ? 'Auto' : 'Manual'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.listDateRow}>
+                <Icon name="calendar" size={12} color={colors.text.tertiary} />
+                <Text style={styles.listDate}>Next: {dayjs(item.nextRenewalDate).format('MMM D, YYYY')}</Text>
+              </View>
+            </View>
+            <View style={styles.listCardRight}>
+              <View style={styles.listPriceBox}>
+                <Text style={styles.listPrice}>₹{item.amount}</Text>
+                {item.billingCycle !== 'monthly' && (
+                  <Text style={styles.listMonthlyEquiv}>₹{item.monthlyEquivalent.toFixed(0)}/mo</Text>
+                )}
+              </View>
+              <View style={styles.listActions}>
+                {!isCancelledSub && (
+                  <TouchableOpacity
+                    style={styles.listCancelButton}
+                    onPress={() => handleCancelSubscription(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="x-circle" size={14} color="#FFFFFF" />
+                    <Text style={styles.listCancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.listDeleteButton}
+                  onPress={() => onDelete(item.id)}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="trash-2" size={14} color={colors.error[500]} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Card>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -337,6 +442,19 @@ export function SubscriptionsScreen({ subscriptions, onDelete }: Props) {
           </View>
         }
       />
+      
+      {/* Cancellation Modal */}
+      {selectedSubscription && (
+        <CancellationModal
+          visible={showCancellationModal}
+          onClose={() => {
+            setShowCancellationModal(false);
+            setSelectedSubscription(null);
+          }}
+          transaction={subscriptionToTransaction(selectedSubscription)}
+          onCancellationComplete={handleCancellationComplete}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -514,16 +632,67 @@ const styles = StyleSheet.create({
     maxWidth: '50%',
     padding: spacing.xs,
   },
+  gridCardUrgent: {
+    borderWidth: 2,
+    borderColor: colors.warning[300],
+  },
+  gridCardCancelled: {
+    opacity: 0.7,
+  },
+  urgentStripSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.warning[100],
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+    marginBottom: spacing.xs,
+    borderRadius: borderRadius.xs,
+  },
+  urgentStripTextSmall: {
+    ...typography.label.small,
+    color: colors.warning[700],
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  cancelledStripSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.success[100],
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+    marginBottom: spacing.xs,
+    borderRadius: borderRadius.xs,
+  },
+  cancelledStripTextSmall: {
+    ...typography.label.small,
+    color: colors.success[700],
+    fontSize: 9,
+    fontWeight: '600',
+  },
   gridCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: spacing.sm,
   },
+  gridActions: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  gridCancelButton: {
+    width: 24,
+    height: 24,
+    borderRadius: borderRadius.xs,
+    backgroundColor: colors.warning[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   gridDeleteButton: {
-    width: 28,
-    height: 28,
-    borderRadius: borderRadius.sm,
+    width: 24,
+    height: 24,
+    borderRadius: borderRadius.xs,
     backgroundColor: colors.error[50],
     justifyContent: 'center',
     alignItems: 'center',
@@ -570,6 +739,45 @@ const styles = StyleSheet.create({
   // List View Styles
   listCard: {
     marginBottom: spacing.sm,
+  },
+  listCardUrgent: {
+    borderWidth: 2,
+    borderColor: colors.warning[300],
+  },
+  listCardCancelled: {
+    opacity: 0.7,
+  },
+  urgentStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.warning[100],
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.xs,
+  },
+  urgentStripText: {
+    ...typography.label.small,
+    color: colors.warning[700],
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  cancelledStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.success[100],
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.sm,
+    borderRadius: borderRadius.xs,
+  },
+  cancelledStripText: {
+    ...typography.label.small,
+    color: colors.success[700],
+    fontSize: 11,
+    fontWeight: '600',
   },
   listCardContent: {
     flexDirection: 'row',
@@ -642,9 +850,29 @@ const styles = StyleSheet.create({
     ...typography.label.small,
     color: colors.text.tertiary,
   },
+  listActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    alignItems: 'center',
+  },
+  listCancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.warning[500],
+  },
+  listCancelButtonText: {
+    ...typography.label.small,
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
   listDeleteButton: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     borderRadius: borderRadius.sm,
     backgroundColor: colors.error[50],
     justifyContent: 'center',

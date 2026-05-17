@@ -43,14 +43,28 @@ const AUTOPAY_CATEGORIES = [
   { label: 'Other', value: 'other', icon: 'dollar-sign' },
 ];
 
+const PAYMENT_APPS = [
+  { label: 'PhonePe', value: 'phonepe', icon: 'smartphone', color: '#5F259F' },
+  { label: 'Google Pay', value: 'gpay', icon: 'smartphone', color: '#4285F4' },
+  { label: 'Paytm', value: 'paytm', icon: 'smartphone', color: '#00BAF2' },
+  { label: 'Play Store', value: 'playstore', icon: 'shopping-bag', color: '#01875F' },
+  { label: 'SBI YONO', value: 'sbi', icon: 'briefcase', color: '#1C4A93' },
+  { label: 'HDFC Bank', value: 'hdfc', icon: 'briefcase', color: '#004C8F' },
+  { label: 'ICICI Bank', value: 'icici', icon: 'briefcase', color: '#B02A30' },
+  { label: 'Axis Bank', value: 'axis', icon: 'briefcase', color: '#97144D' },
+  { label: 'Kotak Bank', value: 'kotak', icon: 'briefcase', color: '#ED232A' },
+  { label: 'Other/Unknown', value: 'unknown', icon: 'help-circle', color: '#757575' },
+];
+
 export function AddSubscriptionScreen({ onAdd, onAddAutopay }: Props) {
   const navigation = useNavigation();
   const [mode, setMode] = useState<'subscription' | 'autopay'>('subscription');
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [cycle, setCycle] = useState<BillingCycle>('monthly');
-  const [nextDate, setNextDate] = useState(dayjs().add(1, 'month').format('YYYY-MM-DD'));
+  const [nextDate, setNextDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [autopayCategory, setAutopayCategory] = useState('other');
+  const [paymentApp, setPaymentApp] = useState('unknown');
 
   const tier = getSubscriptionTier();
 
@@ -58,8 +72,9 @@ export function AddSubscriptionScreen({ onAdd, onAddAutopay }: Props) {
     setName('');
     setAmount('');
     setCycle('monthly');
-    setNextDate(dayjs().add(1, 'month').format('YYYY-MM-DD'));
+    setNextDate(dayjs().format('YYYY-MM-DD'));
     setAutopayCategory('other');
+    setPaymentApp('unknown');
   };
 
   const handleModeChange = (newMode: 'subscription' | 'autopay') => {
@@ -120,6 +135,7 @@ export function AddSubscriptionScreen({ onAdd, onAddAutopay }: Props) {
         source: 'manual',
         monthlyEquivalent: calculateMonthlyEquivalent(parsedAmount, cycle),
         notificationEnabled: true,
+        paymentApp: paymentApp !== 'unknown' ? paymentApp : undefined,
       };
 
       const success = onAdd(subscription);
@@ -168,6 +184,7 @@ export function AddSubscriptionScreen({ onAdd, onAddAutopay }: Props) {
         status: 'active',
         category: autopayCategory,
         rawSms: `Manual autopay entry: ${name.trim()}`,
+        paymentApp: paymentApp !== 'unknown' ? paymentApp : undefined,
       };
 
       const success = onAddAutopay(autopay);
@@ -407,6 +424,58 @@ export function AddSubscriptionScreen({ onAdd, onAddAutopay }: Props) {
               </View>
             </>
           )}
+
+          {/* Payment App Selector (for both modes) */}
+          <View style={styles.inputGroup}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Payment Made Through</Text>
+              <View style={styles.optionalBadge}>
+                <Text style={styles.optionalText}>Optional</Text>
+              </View>
+            </View>
+            <Text style={styles.helperText}>
+              Select the app you use to pay. This helps with cancellation.
+            </Text>
+            <View style={styles.paymentAppGrid}>
+              {PAYMENT_APPS.map(app => (
+                <TouchableOpacity
+                  key={app.value}
+                  style={[
+                    styles.paymentAppButton,
+                    paymentApp === app.value && styles.paymentAppButtonActive,
+                  ]}
+                  onPress={() => setPaymentApp(app.value)}
+                  activeOpacity={0.7}
+                >
+                  <View 
+                    style={[
+                      styles.paymentAppIconWrapper,
+                      paymentApp === app.value && { backgroundColor: app.color + '20' },
+                    ]}
+                  >
+                    <Icon 
+                      name={app.icon} 
+                      size={16} 
+                      color={paymentApp === app.value ? app.color : colors.text.tertiary} 
+                    />
+                  </View>
+                  <Text 
+                    style={[
+                      styles.paymentAppText,
+                      paymentApp === app.value && styles.paymentAppTextActive,
+                    ]}
+                  >
+                    {app.label}
+                  </Text>
+                  {paymentApp === app.value && (
+                    <View style={styles.checkmark}>
+                      <Icon name="check" size={12} color="#FFFFFF" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
 
           {/* Add Button */}
           <TouchableOpacity 
@@ -670,6 +739,79 @@ const styles = StyleSheet.create({
   },
   categoryTextActive: {
     color: colors.success[700],
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  optionalBadge: {
+    backgroundColor: colors.gray[100],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.xs,
+  },
+  optionalText: {
+    ...typography.label.small,
+    color: colors.text.tertiary,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  helperText: {
+    ...typography.body.small,
+    color: colors.text.secondary,
+    marginBottom: spacing.md,
+    lineHeight: 18,
+  },
+  paymentAppGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  paymentAppButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    borderColor: colors.border.light,
+    backgroundColor: colors.surface,
+    gap: spacing.xs,
+    minWidth: '47%',
+    position: 'relative',
+    ...shadows.sm,
+  },
+  paymentAppButtonActive: {
+    borderColor: colors.primary[300],
+    backgroundColor: colors.primary[50],
+    ...shadows.md,
+  },
+  paymentAppIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.gray[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paymentAppText: {
+    ...typography.body.small,
+    color: colors.text.secondary,
+    fontWeight: '600',
+    flex: 1,
+  },
+  paymentAppTextActive: {
+    color: colors.primary[700],
+  },
+  checkmark: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.primary[500],
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   addButton: {
     marginTop: spacing.lg,

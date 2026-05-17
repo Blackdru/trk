@@ -24,7 +24,9 @@ import {
 import { SubscriptionLogo } from '../components/SubscriptionLogo';
 import { BannerAdComponent } from '../components/BannerAdComponent';
 import { Card } from '../components/Card';
+import { CancellationModal } from '../components/CancellationModal';
 import { getSubscriptionTier } from '../services/subscriptionService';
+import { useCancellationTracking } from '../hooks/useCancellationTracking';
 import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
 
 interface Props {
@@ -45,6 +47,10 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
   const [sortBy, setSortBy] = useState<SortOption>('date');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<AutopayTransaction | null>(null);
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
+  
+  const { markAsCancelled, isCancelled } = useCancellationTracking();
   
   const filteredTransactions = useMemo(() => filterNonSubscriptionAutopay(transactions), [transactions]);
   
@@ -113,6 +119,30 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
   }, [processedTransactions, tier.isPro, tier.maxAutopay]);
 
   const isLimitReached = !tier.isPro && filteredTransactions.length > tier.maxAutopay;
+
+  const handleCancelSubscription = (transaction: AutopayTransaction) => {
+    setSelectedTransaction(transaction);
+    setShowCancellationModal(true);
+  };
+
+  const handleCancellationComplete = (transactionId: string, cancelled: boolean) => {
+    if (cancelled) {
+      // Delete the transaction instead of just marking as cancelled
+      onDelete(transactionId);
+    }
+    setShowCancellationModal(false);
+    setSelectedTransaction(null);
+  };
+
+  const formatDueDate = (timestamp: number): string => {
+    const now = Date.now();
+    const diff = timestamp - now;
+    const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+    
+    if (days === 0) return 'today';
+    if (days === 1) return 'tomorrow';
+    return `in ${days} days`;
+  };
 
   if (false) { // Removed pro-only restriction
     return (
@@ -417,60 +447,120 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
               </View>
             </Card>
           ) : (
-            <Card padding="sm">
-              {displayTransactions.map((txn, index) => (
-                <View 
-                  key={txn.id} 
-                  style={[
-                    styles.txnItem,
-                    index === displayTransactions.length - 1 && styles.txnItemLast,
-                  ]}
-                >
-                  <SubscriptionLogo merchantName={txn.merchantName} size={40} />
-                  <View style={styles.txnInfo}>
-                    <Text style={styles.txnName}>{txn.merchantName}</Text>
-                    <View style={styles.txnMeta}>
-                      <View style={[styles.txnTypeBadge, txn.status === 'active' && styles.txnTypeBadgeActive]}>
-                        <Text style={[styles.txnType, txn.status === 'active' && styles.txnTypeActive]}>
-                          {txn.paymentType}
+            <View style={styles.txnList}>
+              {displayTransactions.map((txn, index) => {
+                const isUrgent = txn.nextPaymentDate 
+                  ? (txn.nextPaymentDate - Date.now()) < 2 * 24 * 60 * 60 * 1000
+                  : false;
+                const isCancelledTxn = isCancelled(txn.id);
+                
+                return (
+                  <Card 
+                    key={txn.id} 
+                    style={[
+                      styles.txnCard,
+                      isUrgent && !isCancelledTxn && styles.txnCardUrgent,
+                      isCancelledTxn && styles.txnCardCancelled,
+                    ]}
+                  >
+                    {/* Urgent Banner */}
+                    {isUrgent && !isCancelledTxn && (
+                      <View style={styles.urgentStrip}>
+                        <Icon name="alert-circle" size={12} color={colors.warning[700]} />
+                        <Text style={styles.urgentStripText}>
+                          Payment due {formatDueDate(txn.nextPaymentDate!)}
                         </Text>
                       </View>
-                      {txn.nextPaymentDate ? (
-                        <View style={styles.nextDueBadge}>
-                          <Icon name="calendar" size={10} color={colors.warning[600]} />
-                          <Text style={styles.nextDueText}>
-                            Next: {dayjs(txn.nextPaymentDate).format('MMM D, YYYY')}
-                          </Text>
+                    )}
+
+                    {/* Cancelled Banner */}
+                    {isCancelledTxn && (
+                      <View style={styles.cancelledStrip}>
+                        <Icon name="check-circle" size={12} color={colors.success[700]} />
+                        <Text style={styles.cancelledStripText}>Cancellation Initiated</Text>
+                      </View>
+                    )}
+
+                    <View style={styles.txnCardContent}>
+                      {/* Left: Logo and Info */}
+                      <View style={styles.txnLeft}>
+                        <SubscriptionLogo merchantName={txn.merchantName} size={48} />
+                        <View style={styles.txnInfo}>
+                          <Text style={styles.txnName}>{txn.merchantName}</Text>
+                          <View style={styles.txnMeta}>
+                            <View style={[styles.txnTypeBadge, txn.status === 'active' && styles.txnTypeBadgeActive]}>
+                              <Text style={[styles.txnType, txn.status === 'active' && styles.txnTypeActive]}>
+                                {txn.paymentType}
+                              </Text>
+                            </View>
+                            {txn.category && (
+                              <View style={[styles.txnCatBadge, { backgroundColor: getCategoryColor(txn.category) + '20' }]}>
+                                <Icon name={getCategoryIcon(txn.category)} size={10} color={getCategoryColor(txn.category)} />
+                                <Text style={[styles.txnCat, { color: getCategoryColor(txn.category) }]}>{txn.category}</Text>
+                              </View>
+                            )}
+                          </View>
+                          {txn.nextPaymentDate ? (
+                            <View style={styles.nextDueBadge}>
+                              <Icon name="calendar" size={10} color={colors.text.tertiary} />
+                              <Text style={styles.nextDueText}>
+                                Next: {dayjs(txn.nextPaymentDate).format('MMM D')}
+                              </Text>
+                            </View>
+                          ) : (
+                            <Text style={styles.txnDate}>
+                              {dayjs(txn.date).format('MMM D, YYYY')}
+                            </Text>
+                          )}
                         </View>
-                      ) : (
-                        <Text style={styles.txnDate}>
-                          {dayjs(txn.date).format('MMM D, YYYY')}
-                        </Text>
-                      )}
-                      {txn.category && (
-                        <View style={[styles.txnCatBadge, { backgroundColor: getCategoryColor(txn.category) + '20' }]}>
-                          <Icon name={getCategoryIcon(txn.category)} size={10} color={getCategoryColor(txn.category)} />
-                          <Text style={[styles.txnCat, { color: getCategoryColor(txn.category) }]}>{txn.category}</Text>
+                      </View>
+
+                      {/* Right: Amount and Actions */}
+                      <View style={styles.txnRight}>
+                        <Text style={styles.txnAmount}>₹{txn.amount}</Text>
+                        
+                        {/* Action Buttons */}
+                        <View style={styles.txnActions}>
+                          {!isCancelledTxn && txn.status === 'active' && (
+                            <TouchableOpacity
+                              style={styles.txnCancelButton}
+                              onPress={() => handleCancelSubscription(txn)}
+                              activeOpacity={0.7}
+                            >
+                              <Icon name="x-circle" size={16} color="#FFFFFF" />
+                              <Text style={styles.txnCancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                          )}
+                          <TouchableOpacity
+                            style={styles.txnDeleteButton}
+                            onPress={() => onDelete(txn.id)}
+                            activeOpacity={0.7}
+                          >
+                            <Icon name="trash-2" size={14} color={colors.error[500]} />
+                          </TouchableOpacity>
                         </View>
-                      )}
+                      </View>
                     </View>
-                  </View>
-                  <View style={styles.txnRight}>
-                    <Text style={styles.txnAmount}>₹{txn.amount}</Text>
-                    <TouchableOpacity
-                      style={styles.txnDeleteButton}
-                      onPress={() => onDelete(txn.id)}
-                      activeOpacity={0.7}
-                    >
-                      <Icon name="trash-2" size={14} color={colors.error[500]} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </Card>
+                  </Card>
+                );
+              })}
+            </View>
           )}
         </View>
       </ScrollView>
+
+      {/* Cancellation Modal */}
+      {selectedTransaction && (
+        <CancellationModal
+          visible={showCancellationModal}
+          onClose={() => {
+            setShowCancellationModal(false);
+            setSelectedTransaction(null);
+          }}
+          transaction={selectedTransaction}
+          onCancellationComplete={handleCancellationComplete}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -715,6 +805,66 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
+  txnList: {
+    gap: spacing.md,
+  },
+  txnCard: {
+    padding: 0,
+    overflow: 'hidden',
+  },
+  txnCardUrgent: {
+    borderWidth: 2,
+    borderColor: colors.warning[300],
+  },
+  txnCardCancelled: {
+    opacity: 0.7,
+    borderWidth: 1,
+    borderColor: colors.success[200],
+  },
+  urgentStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.warning[100],
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.warning[200],
+  },
+  urgentStripText: {
+    ...typography.label.small,
+    color: colors.warning[700],
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  cancelledStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.success[100],
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.success[200],
+  },
+  cancelledStripText: {
+    ...typography.label.small,
+    color: colors.success[700],
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  txnCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  txnLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
   txnItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -740,6 +890,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     flexWrap: 'wrap',
+    marginBottom: 2,
   },
   txnTypeBadge: {
     backgroundColor: colors.gray[100],
@@ -767,16 +918,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    backgroundColor: colors.warning[100],
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: borderRadius.xs,
   },
   nextDueText: {
     ...typography.label.small,
-    color: colors.warning[700],
-    fontSize: 9,
-    fontWeight: '600',
+    color: colors.text.tertiary,
+    fontSize: 11,
   },
   txnCatBadge: {
     flexDirection: 'row',
@@ -794,16 +940,37 @@ const styles = StyleSheet.create({
   },
   txnRight: {
     alignItems: 'flex-end',
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   txnAmount: {
-    ...typography.title.small,
+    ...typography.title.medium,
     fontWeight: '700',
     color: colors.text.primary,
   },
+  txnActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    alignItems: 'center',
+  },
+  txnCancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.warning[500],
+    ...shadows.sm,
+  },
+  txnCancelButtonText: {
+    ...typography.label.small,
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
   txnDeleteButton: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderRadius: borderRadius.sm,
     backgroundColor: colors.error[50],
     justifyContent: 'center',
