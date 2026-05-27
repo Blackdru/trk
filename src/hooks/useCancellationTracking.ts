@@ -139,7 +139,7 @@ export function useCancellationTracking() {
         if (data) {
           const record = JSON.parse(data) as CancellationRecord;
           if (record.timestamp < cutoffTime) {
-            storage.delete(key);
+            storage.remove(key);
           }
         }
       }

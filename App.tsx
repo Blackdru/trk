@@ -12,7 +12,7 @@ import { UpgradeScreen, WelcomeScreen } from './src/screens';
 import { BottomTabNavigator } from './src/navigation/BottomTabNavigator';
 import { PaymentAlarmScreen } from './src/components/PaymentAlarmScreen';
 import { OfflineScreen } from './src/components/OfflineScreen';
-import type { Subscription, AutopayTransaction } from './src/types';
+import type { Subscription } from './src/types';
 import { subscribeSmsReceived } from './src/native/SmsModule';
 import { parseSms } from './src/utils/smsParser';
 import { calculateNextRenewal } from './src/utils/subscriptionDetector';
@@ -99,14 +99,14 @@ function AppContent() {
     console.log('[App] Setting up network monitoring');
     
     const unsubscribe = NetInfo.addEventListener(state => {
-      const connected = state.isConnected && state.isInternetReachable !== false;
+      const connected = !!(state.isConnected && state.isInternetReachable !== false);
       console.log('[App] Network status:', connected ? 'online' : 'offline');
       setIsOnline(connected);
     });
 
     // Check initial network status
     NetInfo.fetch().then(state => {
-      const connected = state.isConnected && state.isInternetReachable !== false;
+      const connected = !!(state.isConnected && state.isInternetReachable !== false);
       setIsOnline(connected);
     });
 
@@ -271,27 +271,13 @@ function AppContent() {
       const hasPermission = await checkSmsPermission();
       setHasSmsPermission(hasPermission);
 
-      // If no SMS permission, prompt user to grant it
+      // If no SMS permission, request it immediately (no delay)
       if (!hasPermission) {
-        setTimeout(() => {
-          Alert.alert(
-            'SMS Permission Required',
-            'To automatically detect subscriptions from SMS, please grant SMS permission. This helps track your UPI payments.\n\nAll SMS processing happens locally on your device.',
-            [
-              { text: 'Not Now', style: 'cancel' },
-              { 
-                text: 'Grant Permission', 
-                onPress: async () => {
-                  const granted = await requestSmsPermission();
-                  if (granted) {
-                    setHasSmsPermission(true);
-                    await performSync();
-                  }
-                }
-              },
-            ]
-          );
-        }, 1000); // Delay to avoid showing immediately on app start
+        const granted = await requestSmsPermission();
+        if (granted) {
+          setHasSmsPermission(true);
+          await performSync();
+        }
       } else {
         await performSync();
       }
@@ -563,17 +549,15 @@ function AppContent() {
             setWelcomeCompleted();
             setShowWelcome(false);
             
-            // Request SMS permission immediately after welcome screen
-            setTimeout(async () => {
-              const granted = await requestSmsPermission();
-              if (granted) {
-                setHasSmsPermission(true);
-                // Perform initial sync after permission is granted
-                await performSync();
-              }
-            }, 500); // Small delay to let the UI settle
+            // Request SMS permission immediately after welcome screen (no delay)
+            const granted = await requestSmsPermission();
+            if (granted) {
+              setHasSmsPermission(true);
+              // Perform initial sync after permission is granted
+              await performSync();
+            }
           }}
-          onRequestPermission={requestSmsPermission}
+          onRequestSmsPermission={requestSmsPermission}
         />
       </SafeAreaProvider>
     );
@@ -612,16 +596,25 @@ function AppContent() {
       </NavigationContainer>
 
       <Modal visible={showUpgradeModal} animationType="slide" presentationStyle="pageSheet">
-        <UpgradeScreen onClose={() => setShowUpgradeModal(false)} />
+        <UpgradeScreen onUpgradeSuccess={() => setShowUpgradeModal(false)} onClose={() => setShowUpgradeModal(false)} />
       </Modal>
 
       {activeAlarms.length > 0 && (
         <PaymentAlarmScreen
-          alarm={activeAlarms[activeAlarmIndex]}
+          payment={{
+            id: activeAlarms[activeAlarmIndex].id,
+            merchantName: activeAlarms[activeAlarmIndex].merchantName,
+            amount: activeAlarms[activeAlarmIndex].amount,
+            dueDate: activeAlarms[activeAlarmIndex].dueDate,
+            type: activeAlarms[activeAlarmIndex].type,
+            category: activeAlarms[activeAlarmIndex].category,
+          }}
+          urgency={activeAlarms[activeAlarmIndex].urgency}
           onMarkAsPaid={handleMarkAsPaid}
           onRemindTomorrow={handleRemindTomorrow}
           onSnooze={handleSnooze}
-          remainingAlarms={activeAlarms.length - activeAlarmIndex - 1}
+          currentIndex={activeAlarmIndex}
+          totalAlarms={activeAlarms.length}
         />
       )}
     </SafeAreaProvider>

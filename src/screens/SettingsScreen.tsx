@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { ContactScreen } from './ContactScreen';
 import { ReminderScheduleInfo } from '../components/ReminderScheduleInfo';
 import { TimePickerModal } from '../components/TimePickerModal';
 import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
+import { isBatteryOptimizationDisabled, requestDisableBatteryOptimization } from '../native/AlarmModule';
 
 interface Props {
   settings: AppSettings;
@@ -41,6 +42,63 @@ export function SettingsScreen({
   const [showReminderInfo, setShowReminderInfo] = useState(false);
   const [showBeforeDueTimePicker, setShowBeforeDueTimePicker] = useState(false);
   const [showDueDateTimePicker, setShowDueDateTimePicker] = useState(false);
+  const [isBatteryOptDisabled, setIsBatteryOptDisabled] = useState(true);
+  const [checkingBatteryOpt, setCheckingBatteryOpt] = useState(false);
+
+  // Check battery optimization status when notifications are enabled
+  useEffect(() => {
+    if (settings.notificationsEnabled) {
+      checkBatteryOptimization();
+    }
+  }, [settings.notificationsEnabled]);
+
+  const checkBatteryOptimization = async () => {
+    try {
+      const isDisabled = await isBatteryOptimizationDisabled();
+      setIsBatteryOptDisabled(isDisabled);
+    } catch (error) {
+      console.error('[Settings] Error checking battery optimization:', error);
+    }
+  };
+
+  const handleBatteryOptimization = async () => {
+    setCheckingBatteryOpt(true);
+    
+    try {
+      const isDisabled = await isBatteryOptimizationDisabled();
+      
+      if (isDisabled) {
+        Alert.alert(
+          'Already Optimized',
+          'Battery optimization is already disabled for this app. Your payment reminders will work reliably.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Disable Battery Optimization',
+          'For reliable payment reminders, we recommend disabling battery optimization. This ensures alarms work even when your phone is in deep sleep.\n\nYou\'ll be taken to Android settings to allow this.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Continue', 
+              onPress: async () => {
+                const result = await requestDisableBatteryOptimization();
+                // Recheck status after user returns
+                setTimeout(() => {
+                  checkBatteryOptimization();
+                }, 1000);
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('[Settings] Error handling battery optimization:', error);
+      Alert.alert('Error', 'Failed to check battery optimization status.');
+    } finally {
+      setCheckingBatteryOpt(false);
+    }
+  };
 
   const toggleNotifications = async () => {
     const newValue = !settings.notificationsEnabled;
@@ -243,6 +301,48 @@ export function SettingsScreen({
             </View>
             <Icon name="chevron-right" size={18} color={colors.text.tertiary} />
           </TouchableOpacity>
+
+          {/* Battery Optimization - Only show when notifications enabled */}
+          {settings.notificationsEnabled && (
+            <>
+              <View style={styles.divider} />
+              
+              <TouchableOpacity 
+                style={styles.row} 
+                onPress={handleBatteryOptimization}
+                activeOpacity={0.7}
+                disabled={checkingBatteryOpt}
+              >
+                <View style={[styles.iconWrapper, { backgroundColor: isBatteryOptDisabled ? colors.success[100] : colors.warning[100] }]}>
+                  <Icon 
+                    name={isBatteryOptDisabled ? "battery-charging" : "battery"} 
+                    size={18} 
+                    color={isBatteryOptDisabled ? colors.success[600] : colors.warning[600]} 
+                  />
+                </View>
+                <View style={styles.rowInfo}>
+                  <Text style={styles.rowTitle}>Battery Optimization</Text>
+                  <Text style={[
+                    styles.rowSubtitle, 
+                    isBatteryOptDisabled && styles.permissionGranted
+                  ]}>
+                    {isBatteryOptDisabled 
+                      ? 'Disabled • Alarms will work reliably' 
+                      : 'Recommended for reliable alarms'}
+                  </Text>
+                </View>
+                {isBatteryOptDisabled ? (
+                  <View style={styles.checkIcon}>
+                    <Icon name="check-circle" size={20} color={colors.success[500]} />
+                  </View>
+                ) : (
+                  <View style={styles.warningBadge}>
+                    <Icon name="alert-circle" size={16} color={colors.warning[600]} />
+                  </View>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </Card>
       </View>
 
@@ -561,5 +661,13 @@ const styles = StyleSheet.create({
     color: colors.primary[700],
     fontWeight: '700',
     fontSize: 12,
+  },
+  warningBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.warning[100],
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

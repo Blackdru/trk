@@ -27,14 +27,15 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
       // Check if it's a known subscription service
       const isKnownService = isSubscriptionKeyword(txn);
       
-      // If it's marked as Autopay or Mandate AND it's a known service, it's definitely a subscription
-      const isDefinitelySubscription = (txn.paymentType === 'Autopay' || txn.paymentType === 'Mandate') && isKnownService;
+      // RELAXED RULE: Create subscription for ANY Autopay/Mandate transaction
+      // This allows detection of new services not in our hardcoded list
+      const isLikelySubscription = (txn.paymentType === 'Autopay' || txn.paymentType === 'Mandate');
       
-      if (isDefinitelySubscription) {
+      if (isLikelySubscription) {
         const cycle: BillingCycle = 'monthly'; // Default assumption for subscriptions
         const nextRenewal = calculateNextRenewal(txn.date, cycle);
         
-        console.log(`[SubscriptionDetector] Single autopay/mandate for known service ${txn.merchantName}, creating subscription entry`);
+        console.log(`[SubscriptionDetector] Single autopay/mandate for ${txn.merchantName}, creating subscription entry (known service: ${isKnownService})`);
         
         subscriptions.push({
           id: `sms-${key}`,
@@ -49,7 +50,7 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
           transactions: sortedTxns,
         });
       } else {
-        console.log(`[SubscriptionDetector] Single transaction for ${txn.merchantName}, not creating subscription (not autopay/mandate for known service)`);
+        console.log(`[SubscriptionDetector] Single transaction for ${txn.merchantName}, not creating subscription (not autopay/mandate)`);
       }
       continue;
     }
@@ -57,18 +58,18 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
     // Multiple transactions - try to detect pattern
     const cycle = detectBillingCycle(sortedTxns);
     
-    // If we have multiple transactions but can't detect cycle, check if it's a known service
+    // If we have multiple transactions but can't detect cycle, check if it's autopay/mandate
     if (!cycle) {
       const firstTxn = sortedTxns[0];
       const isKnownService = isSubscriptionKeyword(firstTxn);
       
-      // Only treat as subscription if it's BOTH a known service AND has autopay/mandate
-      if (isKnownService && (firstTxn.paymentType === 'Autopay' || firstTxn.paymentType === 'Mandate')) {
-        // Assume monthly for known services even if pattern is unclear
+      // RELAXED RULE: Treat as subscription if it has autopay/mandate OR is a known service
+      if (isKnownService || firstTxn.paymentType === 'Autopay' || firstTxn.paymentType === 'Mandate') {
+        // Assume monthly for services even if pattern is unclear
         const lastTxn = sortedTxns[sortedTxns.length - 1];
         const nextRenewal = calculateNextRenewal(lastTxn.date, 'monthly');
         
-        console.log(`[SubscriptionDetector] ${txns.length} transactions for ${firstTxn.merchantName}, pattern unclear but treating as monthly subscription (known service)`);
+        console.log(`[SubscriptionDetector] ${txns.length} transactions for ${firstTxn.merchantName}, pattern unclear but treating as monthly subscription (known: ${isKnownService}, autopay: ${firstTxn.paymentType})`);
         
         subscriptions.push({
           id: `sms-${key}`,
@@ -83,20 +84,19 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
           transactions: sortedTxns,
         });
       } else {
-        console.log(`[SubscriptionDetector] Could not detect cycle for ${firstTxn.merchantName} with ${txns.length} transactions (not a known subscription service)`);
+        console.log(`[SubscriptionDetector] Could not detect cycle for ${firstTxn.merchantName} with ${txns.length} transactions (not autopay/mandate or known service)`);
       }
       continue;
     }
 
-    // We detected a cycle - but still check if it's a known subscription service
+    // We detected a cycle - create subscription regardless of whether it's a known service
+    // This allows detection of any recurring payment pattern
     const firstTxn = sortedTxns[0];
     const isKnownService = isSubscriptionKeyword(firstTxn);
     
-    // Only create subscription if it's a known service
-    if (!isKnownService) {
-      console.log(`[SubscriptionDetector] Detected ${cycle} pattern for ${firstTxn.merchantName} but not a known subscription service, skipping`);
-      continue;
-    }
+    console.log(`[SubscriptionDetector] Detected ${cycle} pattern for ${firstTxn.merchantName} (known service: ${isKnownService})`);
+    
+    // Remove the restriction that only allows known services
 
     const lastTxn = sortedTxns[sortedTxns.length - 1];
     const nextRenewal = calculateNextRenewal(lastTxn.date, cycle);

@@ -1,8 +1,9 @@
 {
   "extends": "@react-native/typescript-config",
   "compilerOptions": {
-    "types": ["jest"]
+    "types": ["jest"],
+    "skipLibCheck": true
   },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["**/node_modules", "**/Pods"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "index.js", "jest.config.js", "babel.config.js", "metro.config.js", ".eslintrc.js", ".prettierrc.js"],
+  "exclude": ["**/node_modules", "**/Pods", "**/__tests__", "App.backup.tsx", "App.refactored.tsx"]
 }

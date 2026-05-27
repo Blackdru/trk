@@ -88,8 +88,8 @@ android {
         applicationId "com.budrock.upitracker"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion 35  // Required for Google Play (Android 15) - Updated Feb 2026
-        versionCode 27
-        versionName "2.7"
+        versionCode 28
+        versionName "2.8"
     }
     signingConfigs {
         debug {

@@ -11,11 +11,16 @@ class MainActivity : ReactActivity() {
 
   /**
    * Switch from splash screen theme to app theme before rendering
+   * 
+   * IMPORTANT: Pass null to super.onCreate() to prevent fragment restoration
+   * This is required for react-native-screens to work properly
+   * See: https://github.com/software-mansion/react-native-screens/issues/17
    */
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to remove splash screen
     setTheme(R.style.AppTheme)
-    super.onCreate(savedInstanceState)
+    // Pass null to prevent fragment restoration (required for react-native-screens)
+    super.onCreate(null)
     
     // Handle alarm intent if present
     handleAlarmIntent(intent)

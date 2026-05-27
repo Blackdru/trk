@@ -162,7 +162,7 @@ export function deleteAutopayTransaction(id: string): void {
 }
 
 export function clearAutopayTransactions(): void {
-  getStorage().delete(KEYS.AUTOPAY_TRANSACTIONS);
+  getStorage().clearAll();
 }
 
 // Deleted autopay tracking

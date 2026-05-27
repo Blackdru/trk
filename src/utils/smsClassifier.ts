@@ -77,8 +77,8 @@ export function extractFeatures(sms: RawSms): SmsFeatures {
   const hasQuarterlyKeyword = /quarterly|per quarter/i.test(body);
   const hasWeeklyKeyword = /weekly|per week/i.test(body);
   const hasDurationDays = /\d+\s*days/i.test(body);
-  const hasDueDateKeyword = /due\s+(?:date|on)|is\s+due|emi\s+is\s+due|payment\s+is\s+due/i.test(body);
-  const hasScheduledKeyword = /scheduled\s+on|scheduled\s+for|debit\s+of.*scheduled/i.test(body);
+  const hasDueDateKeyword = /due\s+(?:date|on)|is\s+due|emi\s+is\s+due|payment\s+is\s+due|next\s+(?:payment|emi|bill)\s+(?:is\s+)?due/i.test(body);
+  const hasScheduledKeyword = /scheduled\s+on|scheduled\s+for|debit\s+of.*scheduled|debit\s+is\s+scheduled/i.test(body);
   
   // Extract merchant name for analysis
   const merchantName = extractMerchantForAnalysis(body);
@@ -207,20 +207,32 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
   }
   
   // Rule 3.5: Scheduled payment reminders (UPI AutoPay, EMI, etc.)
+  // These are crucial for detecting recurring payments before they happen
   if (features.hasScheduledKeyword && (features.hasAmount || features.hasDueDateKeyword)) {
     return {
       type: 'autopay',
-      confidence: 0.88,
-      reason: 'Scheduled payment reminder'
+      confidence: 0.90, // Increased confidence for scheduled payments
+      reason: 'Scheduled payment reminder with due date/amount'
     };
   }
   
   // Rule 3.6: Due date reminders for payments
+  // "Your next EMI is due on..." or "Payment due on..."
   if (features.hasDueDateKeyword && !features.merchantLooksLikePerson) {
     return {
       type: 'autopay',
-      confidence: 0.82,
+      confidence: 0.85, // Increased confidence for due date reminders
       reason: 'Payment due date reminder'
+    };
+  }
+  
+  // Rule 3.7: "Next payment" or "upcoming payment" reminders
+  // Even without explicit due date keyword, these indicate recurring payments
+  if (body && /next\s+(?:payment|emi|bill|subscription|autopay|mandate)/i.test(body)) {
+    return {
+      type: 'autopay',
+      confidence: 0.83,
+      reason: 'Next payment reminder'
     };
   }
   

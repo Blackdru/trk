@@ -34,7 +34,7 @@ export interface AlarmState {
   pendingAlarms: PaymentAlarm[];
 }
 
-let alarmCheckInterval: NodeJS.Timeout | null = null;
+let alarmCheckInterval: ReturnType<typeof setInterval> | null = null;
 let alarmCallback: ((alarms: PaymentAlarm[]) => void) | null = null;
 // Track alarm IDs that have already been surfaced to the UI so we don't re-fire them
 // every minute while the user is reviewing them.
@@ -115,26 +115,13 @@ export async function schedulePaymentAlarms(
       return;
     }
     
-    // Check battery optimization
+    // Check battery optimization (log only, don't show dialog)
     const isBatteryOptDisabled = await isBatteryOptimizationDisabled();
     
     if (!isBatteryOptDisabled) {
       console.warn('[AlarmService] Battery optimization is enabled - alarms may not work reliably');
-      
-      // Show alert to user
-      Alert.alert(
-        'Battery Optimization Detected',
-        'For reliable payment reminders, please disable battery optimization for this app. This ensures alarms work even when your phone is in deep sleep.',
-        [
-          { text: 'Skip', style: 'cancel' },
-          { 
-            text: 'Disable Optimization', 
-            onPress: async () => {
-              await requestDisableBatteryOptimization();
-            }
-          }
-        ]
-      );
+      // Note: Modern Android handles this well. Dialog removed to avoid annoying users.
+      // If needed, add a setting in Settings tab for users to manually disable it.
     }
   }
 
@@ -460,7 +447,7 @@ export function getPendingAlarms(): PaymentAlarm[] {
  * Clear all alarms
  */
 export function clearAllAlarms(): void {
-  getStorage().delete(ALARM_STORAGE_KEY);
-  getStorage().delete(SNOOZED_ALARMS_KEY);
+  getStorage().remove(ALARM_STORAGE_KEY);
+  getStorage().remove(SNOOZED_ALARMS_KEY);
   console.log('[AlarmService] Cleared all alarms');
 }

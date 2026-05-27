@@ -11,9 +11,10 @@ import Icon from 'react-native-vector-icons/Feather';
 
 interface Props {
   onComplete: () => void;
+  onRequestPermission?: () => Promise<boolean>;
 }
 
-export function WelcomeScreen({ onComplete }: Props) {
+export function WelcomeScreen({ onComplete, onRequestPermission }: Props) {
   const [currentPage, setCurrentPage] = useState(0);
 
   const pages = [

@@ -187,7 +187,7 @@ export function mergeNewTransactions(
  * Clear sync history (useful for debugging or reset)
  */
 export function clearSyncHistory(): void {
-  getStorage().delete(LAST_SYNC_TIMESTAMP_KEY);
-  getStorage().delete(PROCESSED_SMS_HASHES_KEY);
+  getStorage().remove(LAST_SYNC_TIMESTAMP_KEY);
+  getStorage().remove(PROCESSED_SMS_HASHES_KEY);
   console.log('[IncrementalSync] Sync history cleared');
 }

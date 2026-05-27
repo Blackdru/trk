@@ -18,6 +18,7 @@ export async function getAlarmFromIntent(): Promise<AlarmIntentData | null> {
 
   try {
     // Try to get initial intent data
+    // @ts-ignore - react-native-launch-arguments is optional
     const { default: RNLaunchArguments } = await import('react-native-launch-arguments');
     const launchArgs = RNLaunchArguments.value();
     
