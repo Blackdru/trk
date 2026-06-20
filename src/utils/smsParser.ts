@@ -458,6 +458,25 @@ function extractMerchantName(body: string): string | null {
     /registered\s+successfully\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+subscription/i,
     // NACH debit pattern
     /debit.*?by\s+nach.*?(?:trf to|to)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:Refno|ref|upi|\.))/i,
+    // Auto-debit patterns (common in Indian banking)
+    /auto[\s-]*debit\s+of\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+for\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:from|on|via|has|a\/c|\.))/i,
+    /auto[\s-]*debit\s+for\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:of|from|on|via|rs|inr|₹|has|a\/c|\.))/i,
+    // NACH debit for MERCHANT
+    /nach\s+(?:debit|trf)\s+(?:for|to|towards)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:of|from|on|rs|inr|₹|ref|a\/c|\.))/i,
+    // UPI mandate for MERCHANT
+    /upi\s+mandate\s+(?:for|of|to)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:of|from|on|rs|inr|₹|has|\.))/i,
+    // Autopay payment for MERCHANT
+    /autopay\s+payment\s+(?:for|of|to)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:of|from|on|rs|inr|₹|has|\.))/i,
+    // SI debit for MERCHANT (standing instruction)
+    /si\s+(?:debit|payment|execution)\s+(?:for|of|to|towards)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:of|from|on|rs|inr|₹|has|a\/c|\.))/i,
+    // "debited for MERCHANT on" (without explicit follow-up keywords)
+    /(?:debited|debit)\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+on\s+\d/i,
+    // "debit towards MERCHANT"
+    /(?:debited?|paid)\s+towards\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:of|from|on|rs|inr|₹|ref|a\/c|vide|\.))/i,
+    // "will be debited for MERCHANT" (upcoming debit)
+    /will\s+be\s+debited\s+(?:for|towards)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:of|from|on|rs|inr|₹|\.))/i,
+    // "renewal of MERCHANT" or "renewed for MERCHANT"
+    /(?:renewal|renewed)\s+(?:of|for)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:of|from|on|rs|inr|₹|subscription|has|\.))/i,
     // Generic patterns (lower priority)
     /(?:autopay|mandate).*?(?:to|for)\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:of|for|from|rs|inr|₹))/i,
     /([A-Za-z0-9\s&.+-]+?)\s+(?:autopay|mandate)/i,

@@ -100,13 +100,12 @@ export function useSmsSync() {
         
         // Filter out deleted autopay
         const deletedAutopay = getDeletedAutopay();
-        const validAutopay = autopayTxns.filter(txn => !deletedAutopay.has(txn.id));
+        const validNewAutopay = autopayTxns.filter(txn => !deletedAutopay.has(txn.id));
         
-        // Merge with existing (preserve manual entries)
-        const manualAutopay = existingAutopay.filter(a => a.id.startsWith('manual-autopay-'));
-        const mergedAutopay = [...manualAutopay, ...validAutopay];
+        // Merge with ALL existing autopay (preserve both manual and previously detected SMS ones)
+        const mergedAutopay = [...existingAutopay, ...validNewAutopay];
         
-        // Remove duplicates
+        // Remove duplicates by id (keep the newer version if duplicate)
         const uniqueAutopay = Array.from(
           new Map(mergedAutopay.map(item => [item.id, item])).values()
         );
@@ -114,7 +113,7 @@ export function useSmsSync() {
         // Enrich with billing cycles
         finalAutopay = enrichAutopayWithCycles(uniqueAutopay);
         
-        console.log(`[SmsSync] Final autopay count: ${finalAutopay.length}`);
+        console.log(`[SmsSync] Final autopay count: ${finalAutopay.length} (existing: ${existingAutopay.length}, new: ${validNewAutopay.length})`);
       }
       
       // Call success callback

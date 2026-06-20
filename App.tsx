@@ -12,7 +12,7 @@ import { UpgradeScreen, WelcomeScreen } from './src/screens';
 import { BottomTabNavigator } from './src/navigation/BottomTabNavigator';
 import { PaymentAlarmScreen } from './src/components/PaymentAlarmScreen';
 import { OfflineScreen } from './src/components/OfflineScreen';
-import type { Subscription } from './src/types';
+import type { Subscription, AutopayTransaction } from './src/types';
 import { subscribeSmsReceived } from './src/native/SmsModule';
 import { parseSms } from './src/utils/smsParser';
 import { calculateNextRenewal } from './src/utils/subscriptionDetector';
@@ -143,24 +143,7 @@ function AppContent() {
     }
   }, [showWelcome]);
 
-  // Listen for app state changes
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (appState.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('[App] App came to foreground');
-        if (hasSmsPermission) {
-          performSync();
-        }
-        
-        checkUpcomingPayments();
-      }
-      setAppState(nextAppState);
-    });
 
-    return () => {
-      subscription.remove();
-    };
-  }, [appState, hasSmsPermission, subscriptions, autopayTransactions]);
 
   // Listen for incoming SMS
   useEffect(() => {
@@ -268,21 +251,16 @@ function AppContent() {
         await initializeAdMob();
       }
 
+      // Check current SMS permission status (don't request again - handled during welcome)
       const hasPermission = await checkSmsPermission();
       setHasSmsPermission(hasPermission);
 
-      // If no SMS permission, request it immediately (no delay)
       if (!hasPermission) {
-        const granted = await requestSmsPermission();
-        if (granted) {
-          setHasSmsPermission(true);
-          await performSync();
-        }
+        setShowWelcome(true);
       } else {
         await performSync();
+        checkUpcomingPayments();
       }
-      
-      checkUpcomingPayments();
     } catch (error) {
       console.error('[App] Initialization error:', error);
       Alert.alert('Initialization Error', 'Failed to initialize app. Please restart.');
@@ -348,6 +326,32 @@ function AppContent() {
       }
     }
   }, [subscriptions, autopayTransactions]);
+
+  // Listen for app state changes
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (appState.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('[App] App came to foreground');
+        
+        // Re-verify SMS permission in case it was revoked in settings
+        checkSmsPermission().then(hasPermission => {
+          setHasSmsPermission(hasPermission);
+          if (!hasPermission) {
+            setShowWelcome(true);
+          } else {
+            performSync();
+          }
+        });
+        
+        checkUpcomingPayments();
+      }
+      setAppState(nextAppState);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [appState, hasSmsPermission, subscriptions, autopayTransactions, checkSmsPermission, performSync, checkUpcomingPayments]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -545,17 +549,14 @@ function AppContent() {
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" />
         <WelcomeScreen
-          onComplete={async () => {
+          onComplete={async (smsPermissionGranted: boolean) => {
+            if (!smsPermissionGranted) {
+              Alert.alert('Permission Required', 'SMS permission is mandatory to use the app.');
+              return;
+            }
             setWelcomeCompleted();
             setShowWelcome(false);
-            
-            // Request SMS permission immediately after welcome screen (no delay)
-            const granted = await requestSmsPermission();
-            if (granted) {
-              setHasSmsPermission(true);
-              // Perform initial sync after permission is granted
-              await performSync();
-            }
+            setHasSmsPermission(true);
           }}
           onRequestSmsPermission={requestSmsPermission}
         />
@@ -585,7 +586,7 @@ function AppContent() {
           onSettingsChange={updateSettings}
           onRefresh={handleRefresh}
           refreshing={refreshing}
-          onRequestPermission={requestSmsPermission}
+          onRequestSmsPermission={requestSmsPermission}
           hasSmsPermission={hasSmsPermission}
           isPro={isPro}
           onUpgradePress={() => setShowUpgradeModal(true)}

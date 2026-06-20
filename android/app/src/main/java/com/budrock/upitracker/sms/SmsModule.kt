@@ -37,15 +37,19 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     override fun getName(): String = NAME
 
     /**
-     * Check if READ_SMS permission is granted
+     * Check if both READ_SMS and RECEIVE_SMS permissions are granted
      */
     @ReactMethod
     fun hasPermission(promise: Promise) {
-        val hasPermission = ContextCompat.checkSelfPermission(
+        val hasRead = ContextCompat.checkSelfPermission(
             reactApplicationContext,
             Manifest.permission.READ_SMS
         ) == PackageManager.PERMISSION_GRANTED
-        promise.resolve(hasPermission)
+        val hasReceive = ContextCompat.checkSelfPermission(
+            reactApplicationContext,
+            Manifest.permission.RECEIVE_SMS
+        ) == PackageManager.PERMISSION_GRANTED
+        promise.resolve(hasRead && hasReceive)
     }
 
     /**
@@ -57,12 +61,17 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     @ReactMethod
     fun getSms(promise: Promise) {
         try {
-            if (ContextCompat.checkSelfPermission(
-                    reactApplicationContext,
-                    Manifest.permission.READ_SMS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                promise.reject("PERMISSION_DENIED", "READ_SMS permission not granted")
+            val hasRead = ContextCompat.checkSelfPermission(
+                reactApplicationContext,
+                Manifest.permission.READ_SMS
+            ) == PackageManager.PERMISSION_GRANTED
+            val hasReceive = ContextCompat.checkSelfPermission(
+                reactApplicationContext,
+                Manifest.permission.RECEIVE_SMS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!hasRead || !hasReceive) {
+                promise.reject("PERMISSION_DENIED", "SMS permissions not granted")
                 return
             }
 

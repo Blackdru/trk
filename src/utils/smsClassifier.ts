@@ -14,7 +14,7 @@ export interface SmsFeatures {
   hasEmiKeyword: boolean;
   hasStandingInstructionKeyword: boolean;
   hasNachKeyword: boolean;
-  
+
   // Temporal features
   hasMonthlyKeyword: boolean;
   hasYearlyKeyword: boolean;
@@ -23,25 +23,25 @@ export interface SmsFeatures {
   hasDurationDays: boolean;
   hasDueDateKeyword: boolean;
   hasScheduledKeyword: boolean;
-  
+
   // Merchant features
   merchantIsAllCaps: boolean;
   merchantHasMultipleWords: boolean;
   merchantIsKnownService: boolean;
   merchantLooksLikePerson: boolean;
-  
+
   // Amount features
   hasAmount: boolean;
   amountRange: 'micro' | 'small' | 'medium' | 'large' | 'very-large' | null;
-  
+
   // Sender features
   senderIdType: 'bank-mandate' | 'bank-upi' | 'service' | 'unknown';
-  
+
   // Transaction features
   hasReferenceNumber: boolean;
   hasUpiId: boolean;
   hasAccountNumber: boolean;
-  
+
   // Message structure
   textLength: 'short' | 'medium' | 'long';
   hasSuccessIndicator: boolean;
@@ -61,51 +61,51 @@ export interface ClassificationResult {
 export function extractFeatures(sms: RawSms): SmsFeatures {
   const { body, address } = sms;
   const lowerBody = body.toLowerCase();
-  
+
   // Keyword features - improved patterns
-  const hasAutopayKeyword = /autopay|auto-pay|auto pay|automatic payment|aspresented.*autopay/i.test(body);
-  const hasMandateKeyword = /mandate|e-mandate|emandate|si mandate|upi-mandate/i.test(body);
-  const hasSubscriptionKeyword = /subscription|subscribe/i.test(body);
+  const hasAutopayKeyword = /autopay|auto-pay|auto pay|auto\s*debit|auto-debit|autodebit|automatic payment|aspresented.*autopay|upi\s*autopay|si\s*debit|nach\s*debit|bill\s*pay/i.test(body);
+  const hasMandateKeyword = /mandate|e-mandate|emandate|e-nach|enach|si mandate|upi-mandate|ach\s*debit|umrn/i.test(body);
+  const hasSubscriptionKeyword = /subscription|subscribe|renewal|renewed|renew/i.test(body);
   const hasRecurringKeyword = /recurring|recur/i.test(body);
   const hasEmiKeyword = /\bemi\b/i.test(body);
-  const hasStandingInstructionKeyword = /standing instruction|si\b/i.test(body);
+  const hasStandingInstructionKeyword = /standing instruction|\bsi\s+(?:debit|mandate|payment|execution)/i.test(body);
   const hasNachKeyword = /\bnach\b/i.test(body);
-  
+
   // Temporal features
   const hasMonthlyKeyword = /monthly|per month|\/month/i.test(body);
   const hasYearlyKeyword = /yearly|annual|per year|\/year/i.test(body);
   const hasQuarterlyKeyword = /quarterly|per quarter/i.test(body);
   const hasWeeklyKeyword = /weekly|per week/i.test(body);
   const hasDurationDays = /\d+\s*days/i.test(body);
-  const hasDueDateKeyword = /due\s+(?:date|on)|is\s+due|emi\s+is\s+due|payment\s+is\s+due|next\s+(?:payment|emi|bill)\s+(?:is\s+)?due/i.test(body);
-  const hasScheduledKeyword = /scheduled\s+on|scheduled\s+for|debit\s+of.*scheduled|debit\s+is\s+scheduled/i.test(body);
-  
+  const hasDueDateKeyword = /due\s+(?:date|on)|is\s+due|emi\s+is\s+due|payment\s+is\s+due|next\s+(?:payment|emi|bill)\s+(?:is\s+)?due|payment\s+due/i.test(body);
+  const hasScheduledKeyword = /scheduled\s+on|scheduled\s+for|debit\s+of.*scheduled|debit\s+is\s+scheduled|upcoming\s+debit|will\s+be\s+debited|debit\s+will/i.test(body);
+
   // Extract merchant name for analysis
   const merchantName = extractMerchantForAnalysis(body);
   const merchantIsAllCaps = merchantName ? merchantName === merchantName.toUpperCase() && merchantName.length > 3 : false;
   const merchantHasMultipleWords = merchantName ? merchantName.split(/\s+/).length > 1 : false;
   const merchantIsKnownService = merchantName ? isKnownService(merchantName) : false;
   const merchantLooksLikePerson = merchantName ? looksLikePersonName(merchantName) : false;
-  
+
   // Amount features
   const amount = extractAmountForAnalysis(body);
   const hasAmount = amount !== null;
   const amountRange = amount ? categorizeAmount(amount) : null;
-  
+
   // Sender features
   const senderIdType = categorizeSenderId(address);
-  
+
   // Transaction features
   const hasReferenceNumber = /ref(?:no|erence)?[:\s#]*[a-z0-9]{10,}/i.test(body);
   const hasUpiId = /@[a-z]+/i.test(body);
   const hasAccountNumber = /a\/c|account|ac\s+no/i.test(body);
-  
+
   // Message structure
   const textLength = body.length < 100 ? 'short' : body.length < 250 ? 'medium' : 'long';
   const hasSuccessIndicator = /success|successfully|active|activated|enabled|setup|set up|created|congratulations/i.test(body);
   const hasSetupIndicator = /setup|set up|created|enabled|activated|congratulations/i.test(body);
   const hasDebitIndicator = /debit|debited|paid|payment|transferred|charged/i.test(body);
-  
+
   return {
     hasAutopayKeyword,
     hasMandateKeyword,
@@ -151,7 +151,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Mandate creation with success indicator'
     };
   }
-  
+
   if (features.hasAutopayKeyword && features.hasSuccessIndicator && !features.merchantLooksLikePerson) {
     return {
       type: 'autopay',
@@ -159,7 +159,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Autopay setup with success indicator'
     };
   }
-  
+
   // Rule 2: Subscription indicators
   if (features.hasSubscriptionKeyword && (features.hasAmount || features.hasDurationDays)) {
     return {
@@ -168,7 +168,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Subscription keyword with amount/duration'
     };
   }
-  
+
   // Rule 2.5: Reject loan-related transactions (EMI payments and disbursements)
   // EMI payment confirmations: lenders confirming they received payment
   if (features.hasEmiKeyword && body && /(?:emi|loan).*(?:received|paid|credited|successful)/i.test(body)) {
@@ -178,7 +178,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Loan EMI payment confirmation (not a subscription)'
     };
   }
-  
+
   // Loan disbursement: when loan amount is credited to your account
   if (body && /loan.*(?:disburs|credit|sanction|approv).*(?:credited|transferred|deposited)/i.test(body)) {
     return {
@@ -187,7 +187,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Loan disbursement (not a subscription)'
     };
   }
-  
+
   // Loan disbursement alternative patterns
   if (body && /(?:personal|home|car|education|business)?\s*loan.*(?:amount|of\s+rs)/i.test(body) && /credited|disbursed|transferred|deposited/i.test(body)) {
     return {
@@ -196,7 +196,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Loan disbursement (not a subscription)'
     };
   }
-  
+
   // Rule 3: EMI detection (with or without amount if due date present)
   if (features.hasEmiKeyword && (features.hasAmount || features.hasDueDateKeyword)) {
     return {
@@ -205,7 +205,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: features.hasAmount ? 'EMI keyword with amount' : 'EMI due date reminder'
     };
   }
-  
+
   // Rule 3.5: Scheduled payment reminders (UPI AutoPay, EMI, etc.)
   // These are crucial for detecting recurring payments before they happen
   if (features.hasScheduledKeyword && (features.hasAmount || features.hasDueDateKeyword)) {
@@ -215,7 +215,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Scheduled payment reminder with due date/amount'
     };
   }
-  
+
   // Rule 3.6: Due date reminders for payments
   // "Your next EMI is due on..." or "Payment due on..."
   if (features.hasDueDateKeyword && !features.merchantLooksLikePerson) {
@@ -225,17 +225,26 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Payment due date reminder'
     };
   }
-  
+
   // Rule 3.7: "Next payment" or "upcoming payment" reminders
   // Even without explicit due date keyword, these indicate recurring payments
-  if (body && /next\s+(?:payment|emi|bill|subscription|autopay|mandate)/i.test(body)) {
+  if (body && /next\s+(?:payment|emi|bill|subscription|autopay|mandate)|upcoming\s+(?:payment|emi|bill|debit)/i.test(body)) {
     return {
       type: 'autopay',
       confidence: 0.83,
       reason: 'Next payment reminder'
     };
   }
-  
+
+  // Rule 3.8: Auto-debit patterns (common in Indian banking)
+  if (body && /auto[\s-]*debit.*(?:rs\.?|inr|₹)|(?:rs\.?|inr|₹).*auto[\s-]*debit/i.test(body) && !features.merchantLooksLikePerson) {
+    return {
+      type: 'autopay',
+      confidence: 0.90,
+      reason: 'Auto-debit transaction pattern'
+    };
+  }
+
   // Rule 4: Standing instruction / NACH / Utility bills
   if ((features.hasStandingInstructionKeyword || features.hasNachKeyword || features.hasAutopayKeyword) && features.hasDebitIndicator) {
     return {
@@ -244,7 +253,16 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Standing instruction, NACH, or autopay debit'
     };
   }
-  
+
+  // Rule 4.5: NACH or standing instruction with amount (even without explicit debit keyword)
+  if ((features.hasNachKeyword || features.hasStandingInstructionKeyword) && features.hasAmount && !features.merchantLooksLikePerson) {
+    return {
+      type: 'autopay',
+      confidence: 0.85,
+      reason: 'NACH/SI with amount'
+    };
+  }
+
   // Rule 5: Recurring payment indicators
   if (features.hasRecurringKeyword && features.hasAmount && !features.merchantLooksLikePerson) {
     return {
@@ -253,17 +271,17 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Recurring payment keyword'
     };
   }
-  
+
   // Rule 6: Temporal indicators (monthly/yearly/etc)
-  if ((features.hasMonthlyKeyword || features.hasYearlyKeyword || features.hasQuarterlyKeyword || features.hasWeeklyKeyword) 
-      && features.hasAmount && !features.merchantLooksLikePerson) {
+  if ((features.hasMonthlyKeyword || features.hasYearlyKeyword || features.hasQuarterlyKeyword || features.hasWeeklyKeyword)
+    && features.hasAmount && !features.merchantLooksLikePerson) {
     return {
       type: 'subscription',
       confidence: 0.85,
       reason: 'Temporal frequency indicator'
     };
   }
-  
+
   // Rule 7: Known service + mandate/autopay keywords
   if (features.merchantIsKnownService && (features.hasMandateKeyword || features.hasAutopayKeyword)) {
     return {
@@ -272,7 +290,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Known service with mandate/autopay'
     };
   }
-  
+
   // Rule 8: Sender ID indicates mandate
   if (features.senderIdType === 'bank-mandate' && features.hasDebitIndicator) {
     return {
@@ -281,7 +299,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Bank mandate sender ID'
     };
   }
-  
+
   // Rule 8.5: "executed" or "processed" with autopay
   if ((features.hasAutopayKeyword || features.hasMandateKeyword) && /executed|processed/i.test(body)) {
     return {
@@ -290,7 +308,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Autopay/mandate executed or processed'
     };
   }
-  
+
   // Rule 9: Person-to-person transfer detection (REJECT)
   if (features.merchantLooksLikePerson && features.merchantIsAllCaps && !features.hasMandateKeyword && !features.hasAutopayKeyword) {
     return {
@@ -299,17 +317,17 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Person name pattern detected'
     };
   }
-  
+
   // Rule 10: Generic UPI transfer (REJECT)
-  if (features.senderIdType === 'bank-upi' && !features.hasMandateKeyword && !features.hasAutopayKeyword 
-      && !features.hasSubscriptionKeyword && !features.merchantIsKnownService) {
+  if (features.senderIdType === 'bank-upi' && !features.hasMandateKeyword && !features.hasAutopayKeyword
+    && !features.hasSubscriptionKeyword && !features.merchantIsKnownService) {
     return {
       type: 'p2p-transfer',
       confidence: 0.75,
       reason: 'Generic UPI transfer'
     };
   }
-  
+
   // Rule 11: Weak subscription signals
   if (features.merchantIsKnownService && features.hasAmount && features.hasDebitIndicator) {
     return {
@@ -318,7 +336,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
       reason: 'Known service with debit'
     };
   }
-  
+
   // Default: Unknown
   return {
     type: 'unknown',
@@ -335,14 +353,14 @@ function extractMerchantForAnalysis(body: string): string | null {
     /(?:autopay|mandate).*?(?:towards|for|on)\s+([A-Z\s]+?)(?:\s+(?:for|from|starting))/i,
     /trf\s+to\s+([A-Z\s]+?)\s+(?:Refno|ref)/i,
   ];
-  
+
   for (const pattern of patterns) {
     const match = body.match(pattern);
     if (match && match[1]) {
       return match[1].trim();
     }
   }
-  
+
   return null;
 }
 
@@ -352,7 +370,7 @@ function extractAmountForAnalysis(body: string): number | null {
     /([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:rs\.?|inr|₹)/i,
     /debited\s+by\s+([0-9,]+(?:\.[0-9]{1,2})?)/i,
   ];
-  
+
   for (const pattern of patterns) {
     const match = body.match(pattern);
     if (match) {
@@ -362,7 +380,7 @@ function extractAmountForAnalysis(body: string): number | null {
       }
     }
   }
-  
+
   return null;
 }
 
@@ -376,22 +394,28 @@ function categorizeAmount(amount: number): 'micro' | 'small' | 'medium' | 'large
 
 function categorizeSenderId(address: string): 'bank-mandate' | 'bank-upi' | 'service' | 'unknown' {
   const lowerAddress = address.toLowerCase();
-  
+
   // Bank mandate/SI sender IDs
-  if (/man|mandate|si|standing/i.test(address)) {
+  if (/man|mandate|si|standing|nach|emandate/i.test(address)) {
     return 'bank-mandate';
   }
-  
-  // Bank UPI sender IDs
+
+  // Bank UPI sender IDs (common Indian bank sender patterns)
   if (/upi|vm-.*upi/i.test(address)) {
     return 'bank-upi';
   }
-  
+
+  // Common Indian bank sender IDs (VM-HDFCBK, AX-SBIBNK, JD-ICICIT, etc.)
+  // These banks send autopay/mandate SMS from their general banking sender IDs
+  if (/(?:vm|ax|jd|ad|dm|bp|td|jk|cb)-?(?:hdfcbk|sbibnk|sbi|icicit|icici|axisbk|axis|kotakb|kotak|pnb|boibk|boi|canbnk|canara|uboi|unionbk|idbibk|idbi|fedbk|federal|yesbk|yes|indbk|indusind|rblbnk|rbl|dcbbk|dcb|barodbk|baroda|scbnk|sc)/i.test(address)) {
+    return 'bank-mandate';
+  }
+
   // Service sender IDs
-  if (/paytm|google|amazon|netflix|spotify/i.test(address)) {
+  if (/paytm|google|amazon|netflix|spotify|phonepe|gpay|cred|swiggy|zomato/i.test(address)) {
     return 'service';
   }
-  
+
   return 'unknown';
 }
 
@@ -402,36 +426,36 @@ function isKnownService(merchantName: string): boolean {
     'youtube', 'apple', 'jiohotstar', 'jio hotstar',
     'zee5', 'sonyliv', 'voot', 'mx player', 'eros now',
     'story tv', 'colors', 'star plus', 'sun nxt', 'hoichoi',
-    
+
     // Cloud & Software (consumer-focused only)
     'microsoft', 'adobe', 'dropbox', 'github',
     'google play', 'play store', 'app store',
-    
+
     // Food & Transport
     'swiggy', 'zomato', 'uber', 'ola', 'rapido',
-    
+
     // Telecom & Internet
     'jio', 'airtel', 'vodafone', 'bsnl', 'act', 'vi',
-    
+
     // Financial
     'lic', 'hdfc', 'icici', 'sbi', 'axis', 'kotak',
     'paytm', 'phonepe', 'gpay',
-    
+
     // Utilities
     'indane', 'bharat gas', 'hp gas', 'bescom', 'mseb'
   ];
-  
+
   const lowerMerchant = merchantName.toLowerCase();
-  
+
   // Special case: "Google Play" is a known service, but plain "Google" is not
   if (lowerMerchant === 'google play') {
     return true;
   }
-  
+
   if (lowerMerchant === 'google') {
     return false;
   }
-  
+
   return knownServices.some(service => lowerMerchant.includes(service));
 }
 
@@ -440,27 +464,48 @@ function looksLikePersonName(merchantName: string): boolean {
   // 1. All caps with 2-3 words
   // 2. No special characters except spaces
   // 3. Each word is 3+ characters
-  
+
   if (merchantName !== merchantName.toUpperCase()) {
     return false;
   }
-  
+
+  // Check against known services FIRST - these are all-caps but NOT person names
+  // e.g., BESCOM, HDFC LIFE, TATA POWER, LIC, BSNL, etc.
+  if (isKnownService(merchantName)) {
+    return false;
+  }
+
+  // Also check common all-caps service/company patterns
+  const knownAllCapsServices = [
+    'BESCOM', 'MSEB', 'BSES', 'CESC', 'TATA', 'HDFC', 'ICICI', 'SBI', 'AXIS',
+    'KOTAK', 'PNB', 'BOI', 'CANARA', 'UNION', 'IDBI', 'FEDERAL', 'YES',
+    'INDUSIND', 'RBL', 'DCB', 'BARODA', 'LIC', 'BSNL', 'MTNL',
+    'NACH', 'NPCI', 'UPI', 'NEFT', 'RTGS', 'IMPS',
+  ];
+
+  const upperName = merchantName.toUpperCase();
+  for (const service of knownAllCapsServices) {
+    if (upperName.includes(service)) {
+      return false;
+    }
+  }
+
   const words = merchantName.split(/\s+/);
-  
+
   // 2-4 words is typical for person names
   if (words.length < 2 || words.length > 4) {
     return false;
   }
-  
+
   // Each word should be 3+ characters
   if (words.some(word => word.length < 3)) {
     return false;
   }
-  
+
   // Should not contain numbers or special chars (except spaces)
   if (/[0-9@#$%^&*()_+=\[\]{}|\\:;"'<>,.?\/]/.test(merchantName)) {
     return false;
   }
-  
+
   return true;
 }
