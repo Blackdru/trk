@@ -1,4 +1,5 @@
 import type { RawSms } from '../types';
+import { getKnownServiceNames, getKnownServiceBodyPatterns, getSpecialServiceMap } from './merchantPatterns';
 
 /**
  * SMS Feature Extraction for Rule-Based ML Classification
@@ -97,13 +98,14 @@ export function extractFeatures(sms: RawSms): SmsFeatures {
 
   // Transaction features
   const hasReferenceNumber = /ref(?:no|erence)?[:\s#]*[a-z0-9]{10,}/i.test(body);
-  const hasUpiId = /@[a-z]+/i.test(body);
+  // Issue #3: Require valid UPI handle suffixes instead of any @string
+  const hasUpiId = /[a-zA-Z0-9._-]+@(?:ybl|upi|paytm|okhdfcbank|okaxis|oksbi|apl|ibl|axl|sbi|icici|hdfcbank|kotak|indus|federal|rbl|boi|pnb|canarabank|unionbank|idbi|dcb|dbs|sc|hsbc|citi|bob|freecharge|okicici|okbizaxis)\b/i.test(body);
   const hasAccountNumber = /a\/c|account|ac\s+no/i.test(body);
 
   // Message structure
   const textLength = body.length < 100 ? 'short' : body.length < 250 ? 'medium' : 'long';
-  const hasSuccessIndicator = /success|successfully|active|activated|enabled|setup|set up|created|congratulations/i.test(body);
-  const hasSetupIndicator = /setup|set up|created|enabled|activated|congratulations/i.test(body);
+  const hasSuccessIndicator = /success|successfully|active|activated|enabled|setup|set up|created|congratulations|initiated/i.test(body);
+  const hasSetupIndicator = /setup|set up|created|enabled|activated|congratulations|initiated/i.test(body);
   const hasDebitIndicator = /debit|debited|paid|payment|transferred|charged/i.test(body);
 
   return {
@@ -143,6 +145,15 @@ export function extractFeatures(sms: RawSms): SmsFeatures {
  * Uses extracted features to classify SMS type
  */
 export function classifySms(features: SmsFeatures, body?: string): ClassificationResult {
+  // Reject cancelled/revoked/stopped mandates/autopays
+  if (body && /cancell(?:ed|ation)|revok(?:ed|ation)|stop(?:ped)/i.test(body)) {
+    return {
+      type: 'p2p-transfer', // Use p2p-transfer as standard rejection type
+      confidence: 0.99,
+      reason: 'Mandate or autopay was cancelled/revoked/stopped'
+    };
+  }
+
   // Rule 1: Strong mandate/autopay indicators
   if (features.hasMandateKeyword && features.hasSuccessIndicator && !features.merchantLooksLikePerson) {
     return {
@@ -169,18 +180,10 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
     };
   }
 
-  // Rule 2.5: Reject loan-related transactions (EMI payments and disbursements)
-  // EMI payment confirmations: lenders confirming they received payment
-  if (features.hasEmiKeyword && body && /(?:emi|loan).*(?:received|paid|credited|successful)/i.test(body)) {
-    return {
-      type: 'p2p-transfer',
-      confidence: 0.95,
-      reason: 'Loan EMI payment confirmation (not a subscription)'
-    };
-  }
-
+  // Rule 2.5: Reject loan DISBURSEMENTS only (money credited TO you)
+  // Issue #10: Don't reject EMI payment confirmations — those are legitimate recurring debits
   // Loan disbursement: when loan amount is credited to your account
-  if (body && /loan.*(?:disburs|credit|sanction|approv).*(?:credited|transferred|deposited)/i.test(body)) {
+  if (body && /loan.*(?:disburs|sanction|approv).*(?:credited|transferred|deposited)/i.test(body)) {
     return {
       type: 'p2p-transfer',
       confidence: 0.95,
@@ -188,8 +191,8 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
     };
   }
 
-  // Loan disbursement alternative patterns
-  if (body && /(?:personal|home|car|education|business)?\s*loan.*(?:amount|of\s+rs)/i.test(body) && /credited|disbursed|transferred|deposited/i.test(body)) {
+  // Loan disbursement alternative patterns — only when money is CREDITED to you
+  if (body && /(?:personal|home|car|education|business)?\s*loan.*(?:amount|of\s+rs)/i.test(body) && /credited|disbursed|deposited/i.test(body) && !/debited|debit/i.test(body)) {
     return {
       type: 'p2p-transfer',
       confidence: 0.95,
@@ -301,7 +304,7 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
   }
 
   // Rule 8.5: "executed" or "processed" with autopay
-  if ((features.hasAutopayKeyword || features.hasMandateKeyword) && /executed|processed/i.test(body)) {
+  if ((features.hasAutopayKeyword || features.hasMandateKeyword) && body && /executed|processed/i.test(body)) {
     return {
       type: 'autopay',
       confidence: 0.85,
@@ -337,6 +340,29 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
     };
   }
 
+  // Rule 12: Catch-all for known services — even without autopay/mandate keywords,
+  // if a known subscription service name appears and there's an amount, it's likely a subscription
+  if (features.merchantIsKnownService && features.hasAmount) {
+    return {
+      type: 'subscription',
+      confidence: 0.65,
+      reason: 'Known service with amount (catch-all)'
+    };
+  }
+
+  // Rule 13: Known service in SMS body without explicit merchant extraction
+  // Check the raw body for known service names as a last resort
+  if (body) {
+    const knownInBody = isKnownServiceInBody(body);
+    if (knownInBody && features.hasAmount) {
+      return {
+        type: 'subscription',
+        confidence: 0.60,
+        reason: `Known service detected in SMS body (catch-all)`,
+      };
+    }
+  }
+
   // Default: Unknown
   return {
     type: 'unknown',
@@ -346,6 +372,15 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
 }
 
 // Helper functions
+
+/**
+ * Check if the raw SMS body contains a known subscription service name.
+ * Used as a catch-all when the classifier can't determine type from keywords alone.
+ */
+// Issue #6: Use single source of truth from merchantPatterns.ts
+function isKnownServiceInBody(body: string): boolean {
+  return getKnownServiceBodyPatterns().some(p => p.test(body));
+}
 
 function extractMerchantForAnalysis(body: string): string | null {
   const patterns = [
@@ -393,84 +428,65 @@ function categorizeAmount(amount: number): 'micro' | 'small' | 'medium' | 'large
 }
 
 function categorizeSenderId(address: string): 'bank-mandate' | 'bank-upi' | 'service' | 'unknown' {
-  const lowerAddress = address.toLowerCase();
+  // Issue #2: Fix sender ID regex — use word boundaries to prevent false matches
+  // (e.g. 'man' was matching AMAZON, 'si' was matching MUSICIN)
 
-  // Bank mandate/SI sender IDs
-  if (/man|mandate|si|standing|nach|emandate/i.test(address)) {
+  // Bank mandate/SI sender IDs — require full words
+  if (/\bmandate\b|\bemandate\b|\bstanding\b|\bnach\b/i.test(address)) {
+    return 'bank-mandate';
+  }
+  // "SI" only when preceded by a prefix separator (e.g., VM-SI, AX-SI)
+  if (/[-.]si$/i.test(address) || /[-.]si[-]/i.test(address)) {
     return 'bank-mandate';
   }
 
   // Bank UPI sender IDs (common Indian bank sender patterns)
-  if (/upi|vm-.*upi/i.test(address)) {
+  if (/\bupi\b|vm-.*upi/i.test(address)) {
     return 'bank-upi';
   }
 
-  // Common Indian bank sender IDs (VM-HDFCBK, AX-SBIBNK, JD-ICICIT, etc.)
-  // These banks send autopay/mandate SMS from their general banking sender IDs
-  if (/(?:vm|ax|jd|ad|dm|bp|td|jk|cb)-?(?:hdfcbk|sbibnk|sbi|icicit|icici|axisbk|axis|kotakb|kotak|pnb|boibk|boi|canbnk|canara|uboi|unionbk|idbibk|idbi|fedbk|federal|yesbk|yes|indbk|indusind|rblbnk|rbl|dcbbk|dcb|barodbk|baroda|scbnk|sc)/i.test(address)) {
+  // Common Indian bank sender IDs with various prefixes
+  // Prefixes: VM-, AX-, JD-, AD-, DM-, BP-, TD-, JK-, CB-, HP-, BZ-, etc.
+  if (/(?:vm|ax|jd|ad|dm|bp|td|jk|cb|hp|bz|md|bw|dd|mg|am|jm|tm|ai|bn|pb|qb)-?(?:hdfcbk|sbibnk|sbi|icicit|icici|axisbk|axis|kotakb|kotak|pnb|boibk|boi|canbnk|canara|uboi|unionbk|idbibk|idbi|fedbk|federal|yesbk|yes|indbk|indusind|rblbnk|rbl|dcbbk|dcb|barodbk|baroda|scbnk|sc|citi|hsbc|bob|ubi|dena|syndicate|vijaya|allahabad|andhra|corpbank|indian|obc|orient)/i.test(address)) {
+    return 'bank-mandate';
+  }
+
+  // Numeric sender IDs (some banks use 6-digit numeric senders like 567678)
+  if (/^\d{5,8}$/.test(address)) {
     return 'bank-mandate';
   }
 
   // Service sender IDs
-  if (/paytm|google|amazon|netflix|spotify|phonepe|gpay|cred|swiggy|zomato/i.test(address)) {
+  if (/paytm|google|amazon|netflix|spotify|phonepe|gpay|cred|swiggy|zomato|jio|airtel|flipkart/i.test(address)) {
     return 'service';
   }
 
   return 'unknown';
 }
 
+// Issue #6: Use single source of truth from merchantPatterns.ts
 function isKnownService(merchantName: string): boolean {
-  const knownServices = [
-    // Streaming & Entertainment
-    'netflix', 'spotify', 'amazon', 'prime', 'hotstar', 'disney',
-    'youtube', 'apple', 'jiohotstar', 'jio hotstar',
-    'zee5', 'sonyliv', 'voot', 'mx player', 'eros now',
-    'story tv', 'colors', 'star plus', 'sun nxt', 'hoichoi',
-
-    // Cloud & Software (consumer-focused only)
-    'microsoft', 'adobe', 'dropbox', 'github',
-    'google play', 'play store', 'app store',
-
-    // Food & Transport
-    'swiggy', 'zomato', 'uber', 'ola', 'rapido',
-
-    // Telecom & Internet
-    'jio', 'airtel', 'vodafone', 'bsnl', 'act', 'vi',
-
-    // Financial
-    'lic', 'hdfc', 'icici', 'sbi', 'axis', 'kotak',
-    'paytm', 'phonepe', 'gpay',
-
-    // Utilities
-    'indane', 'bharat gas', 'hp gas', 'bescom', 'mseb'
-  ];
-
   const lowerMerchant = merchantName.toLowerCase();
 
   // Special case: "Google Play" is a known service, but plain "Google" is not
   if (lowerMerchant === 'google play') {
     return true;
   }
-
   if (lowerMerchant === 'google') {
     return false;
   }
 
-  return knownServices.some(service => lowerMerchant.includes(service));
+  const knownNames = getKnownServiceNames();
+  return knownNames.some(service => lowerMerchant.includes(service));
 }
 
 function looksLikePersonName(merchantName: string): boolean {
   // Person names are typically:
-  // 1. All caps with 2-3 words
+  // 1. All caps with 2-3 words, OR mixed case with 2-3 capitalized words
   // 2. No special characters except spaces
-  // 3. Each word is 3+ characters
+  // 3. Each word is 3+ characters (but allow 1-2 char words like "K" for initials)
 
-  if (merchantName !== merchantName.toUpperCase()) {
-    return false;
-  }
-
-  // Check against known services FIRST - these are all-caps but NOT person names
-  // e.g., BESCOM, HDFC LIFE, TATA POWER, LIC, BSNL, etc.
+  // Check against known services FIRST - these are NOT person names
   if (isKnownService(merchantName)) {
     return false;
   }
@@ -481,6 +497,7 @@ function looksLikePersonName(merchantName: string): boolean {
     'KOTAK', 'PNB', 'BOI', 'CANARA', 'UNION', 'IDBI', 'FEDERAL', 'YES',
     'INDUSIND', 'RBL', 'DCB', 'BARODA', 'LIC', 'BSNL', 'MTNL',
     'NACH', 'NPCI', 'UPI', 'NEFT', 'RTGS', 'IMPS',
+    'AWS', 'GCP', 'ACT', 'CRED', 'PAYTM', 'BHIM',
   ];
 
   const upperName = merchantName.toUpperCase();
@@ -497,15 +514,42 @@ function looksLikePersonName(merchantName: string): boolean {
     return false;
   }
 
-  // Each word should be 3+ characters
-  if (words.some(word => word.length < 3)) {
-    return false;
-  }
-
-  // Should not contain numbers or special chars (except spaces)
+  // Should not contain numbers or special chars (except spaces and hyphens)
   if (/[0-9@#$%^&*()_+=\[\]{}|\\:;"'<>,.?\/]/.test(merchantName)) {
     return false;
   }
 
-  return true;
+  // Check for person name patterns:
+  // Pattern 1: ALL CAPS name (e.g., "RAHUL SHARMA") — most common in bank SMS
+  if (merchantName === merchantName.toUpperCase()) {
+    // Each word should be 2+ characters for all caps names
+    const validWords = words.filter(w => w.length >= 2);
+    if (validWords.length >= 2) {
+      return true;
+    }
+  }
+
+  // Pattern 2: Title Case name (e.g., "Rahul Sharma", "Priya K")
+  // Check if each word starts with uppercase
+  const isTitleCase = words.every(w => w.length > 0 && w[0] === w[0].toUpperCase());
+  if (isTitleCase) {
+    // Must have at least one word with 3+ characters
+    const hasSubstantialWord = words.some(w => w.length >= 3);
+    // Must not have any word that looks like a common service keyword
+    // Issue #9: Expanded service words blocklist to prevent false positives
+    const serviceWords = [
+      'play', 'prime', 'music', 'fiber', 'plus', 'one', 'cloud', 'life', 'pay',
+      'loan', 'card', 'gas', 'power', 'bill', 'mobile', 'net',
+      'credits', 'balance', 'direct', 'time', 'view', 'finance', 'capital',
+      'bank', 'insurance', 'mutual', 'fund', 'money', 'cash', 'digital',
+      'express', 'services', 'solutions', 'tech', 'telecom', 'broadband',
+    ];
+    const hasServiceWord = words.some(w => serviceWords.includes(w.toLowerCase()));
+    
+    if (hasSubstantialWord && !hasServiceWord) {
+      return true;
+    }
+  }
+
+  return false;
 }

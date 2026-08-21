@@ -13,7 +13,7 @@ interface StatCardProps {
   iconColor?: string;
 }
 
-export function StatCard({ icon, label, value, subtitle, gradient = ['#8B5CF6', '#6D28D9'], iconColor = '#FFFFFF' }: StatCardProps) {
+export function StatCard({ icon, label, value, subtitle, gradient = ['#6366D6', '#504DB8'], iconColor = '#FFFFFF' }: StatCardProps) {
   return (
     <LinearGradient
       colors={gradient}

@@ -29,9 +29,9 @@ class MainActivity : ReactActivity() {
   /**
    * Handle new intents (when app is already running)
    */
-  override fun onNewIntent(intent: Intent?) {
+  override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
-    intent?.let { handleAlarmIntent(it) }
+    handleAlarmIntent(intent)
   }
 
   /**

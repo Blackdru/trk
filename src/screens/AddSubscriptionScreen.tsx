@@ -145,15 +145,6 @@ export function AddSubscriptionScreen({ onAdd, onAddAutopay }: Props) {
         Alert.alert('Success', 'Subscription added successfully', [
           { text: 'OK', onPress: () => navigation.navigate('Subscriptions' as never) }
         ]);
-        
-        const tier = getSubscriptionTier();
-        if (!tier.isPro) {
-          setTimeout(() => {
-            showRewardedAd(() => {
-              console.log('[AddSubscription] User watched rewarded ad');
-            });
-          }, 500);
-        }
       }
     } else {
       const tier = getSubscriptionTier();

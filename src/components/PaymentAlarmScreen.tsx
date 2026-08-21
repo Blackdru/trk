@@ -8,6 +8,7 @@ import {
   Dimensions,
   StatusBar,
   BackHandler,
+  ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import LinearGradient from 'react-native-linear-gradient';
@@ -97,7 +98,7 @@ export function PaymentAlarmScreen({ payment, urgency, onMarkAsPaid, onRemindTom
     switch (urgency) {
       case 'two-days':
         return {
-          gradient: ['#F59E0B', '#D97706'],
+          gradient: ['#E08A1E', '#BE7215'],
           icon: 'alert-circle',
           title: 'Payment Due in 2 Days',
           message: 'Ensure you have sufficient balance',
@@ -105,7 +106,7 @@ export function PaymentAlarmScreen({ payment, urgency, onMarkAsPaid, onRemindTom
         };
       case 'one-day':
         return {
-          gradient: ['#EF4444', '#DC2626'],
+          gradient: ['#E5484D', '#C9363B'],
           icon: 'alert-triangle',
           title: 'Payment Due Tomorrow',
           message: 'Last chance to prepare your account',
@@ -113,7 +114,7 @@ export function PaymentAlarmScreen({ payment, urgency, onMarkAsPaid, onRemindTom
         };
       case 'today':
         return {
-          gradient: ['#DC2626', '#991B1B'],
+          gradient: ['#C9363B', '#871F23'],
           icon: 'zap',
           title: 'PAYMENT DUE TODAY',
           message: 'Payment will be processed today!',
@@ -135,22 +136,19 @@ export function PaymentAlarmScreen({ payment, urgency, onMarkAsPaid, onRemindTom
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
       >
-        {/* Top Section */}
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Top Section */}
         <View style={styles.topSection}>
           <Animated.View
-            style={[
-              styles.iconContainer,
-              {
-                transform: [
-                  { scale: pulseAnim },
-                  { translateX: urgency === 'today' ? shakeAnim : 0 },
-                ],
-              },
-            ]}
+            style={{
+              transform: [
+                { scale: pulseAnim },
+                { translateX: urgency === 'today' ? shakeAnim : 0 },
+              ],
+              marginBottom: spacing.md,
+            }}
           >
-            <View style={styles.iconCircle}>
-              <Icon name={config.icon} size={80} color="#FFF" />
-            </View>
+            <Text style={styles.emoji}>{config.emoji}</Text>
           </Animated.View>
 
           {totalAlarms != null && totalAlarms > 1 && (
@@ -161,7 +159,6 @@ export function PaymentAlarmScreen({ payment, urgency, onMarkAsPaid, onRemindTom
             </View>
           )}
 
-          <Text style={styles.emoji}>{config.emoji}</Text>
           <Text style={styles.title}>{config.title}</Text>
           <Text style={styles.message}>{config.message}</Text>
         </View>
@@ -213,7 +210,7 @@ export function PaymentAlarmScreen({ payment, urgency, onMarkAsPaid, onRemindTom
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={['#10B981', '#059669']}
+              colors={['#10A37A', '#0C8A66']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.buttonGradient}
@@ -247,15 +244,15 @@ export function PaymentAlarmScreen({ payment, urgency, onMarkAsPaid, onRemindTom
           </View>
         </View>
 
-        {/* Bottom Info */}
-        <View style={styles.bottomInfo}>
-          <Icon name="info" size={14} color="rgba(255,255,255,0.7)" />
-          <Text style={styles.bottomInfoText}>
-            {urgency === 'today' 
-              ? 'Payment will be automatically processed today'
-              : 'You will be reminded again tomorrow'}
-          </Text>
-        </View>
+          {/* Bottom Info */}
+          <View style={styles.bottomInfo}>
+            <Text style={styles.bottomInfoText}>
+              {urgency === 'today' 
+                ? 'Payment will be automatically processed today'
+                : 'You will be reminded again tomorrow'}
+            </Text>
+          </View>
+        </ScrollView>
       </LinearGradient>
     </View>
   );
@@ -267,6 +264,8 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+  },
+  scrollContent: {
     paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
     paddingHorizontal: spacing.lg,
@@ -302,8 +301,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   emoji: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
+    fontSize: 64,
+    textAlign: 'center',
   },
   title: {
     ...typography.headline.large,
@@ -388,18 +387,18 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: '#FAE8C9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   countdownNumber: {
     ...typography.headline.medium,
-    color: '#D97706',
+    color: '#BE7215',
     fontWeight: '800',
   },
   countdownLabel: {
     ...typography.label.small,
-    color: '#D97706',
+    color: '#BE7215',
     fontSize: 10,
   },
   countdownText: {

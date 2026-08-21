@@ -152,33 +152,35 @@ export async function schedulePaymentAlarms(
     let currentDate = startDate;
     let dayCount = 0;
     
-    while (currentDate.valueOf() <= endDate.valueOf() && currentDate.valueOf() > now) {
-      let urgency: 'two-days' | 'one-day' | 'today';
-      const daysUntilDue = dueDate.diff(currentDate, 'day');
-      
-      if (daysUntilDue >= 2) {
-        urgency = 'two-days';
-      } else if (daysUntilDue >= 1) {
-        urgency = 'one-day';
-      } else {
-        urgency = 'today';
+    while (currentDate.valueOf() <= endDate.valueOf()) {
+      if (currentDate.valueOf() > now) {
+        let urgency: 'two-days' | 'one-day' | 'today';
+        const daysUntilDue = dueDate.diff(currentDate, 'day');
+        
+        if (daysUntilDue >= 2) {
+          urgency = 'two-days';
+        } else if (daysUntilDue >= 1) {
+          urgency = 'one-day';
+        } else {
+          urgency = 'today';
+        }
+        
+        const alarm = {
+          id: `${sub.id}-${urgency}-${dayCount}`,
+          paymentId: sub.id,
+          merchantName: sub.merchantName,
+          amount: sub.amount,
+          dueDate: sub.nextRenewalDate,
+          type: 'subscription' as const,
+          urgency,
+          triggerTime: currentDate.valueOf(),
+          dismissed: false,
+          markedAsPaid: false,
+        };
+        
+        alarms.push(alarm);
+        console.log(`[AlarmService] Created alarm: ${alarm.id} at ${currentDate.format('YYYY-MM-DD HH:mm')} (${urgency})`);
       }
-      
-      const alarm = {
-        id: `${sub.id}-${urgency}-${dayCount}`,
-        paymentId: sub.id,
-        merchantName: sub.merchantName,
-        amount: sub.amount,
-        dueDate: sub.nextRenewalDate,
-        type: 'subscription' as const,
-        urgency,
-        triggerTime: currentDate.valueOf(),
-        dismissed: false,
-        markedAsPaid: false,
-      };
-      
-      alarms.push(alarm);
-      console.log(`[AlarmService] Created alarm: ${alarm.id} at ${currentDate.format('YYYY-MM-DD HH:mm')} (${urgency})`);
       
       // Move to next day at custom time (or custom time for payment day)
       if (currentDate.isSame(dueDate, 'day')) {
@@ -216,34 +218,36 @@ export async function schedulePaymentAlarms(
     let currentDate = startDate;
     let dayCount = 0;
     
-    while (currentDate.valueOf() <= endDate.valueOf() && currentDate.valueOf() > now) {
-      let urgency: 'two-days' | 'one-day' | 'today';
-      const daysUntilDue = dueDate.diff(currentDate, 'day');
-      
-      if (daysUntilDue >= 2) {
-        urgency = 'two-days';
-      } else if (daysUntilDue >= 1) {
-        urgency = 'one-day';
-      } else {
-        urgency = 'today';
+    while (currentDate.valueOf() <= endDate.valueOf()) {
+      if (currentDate.valueOf() > now) {
+        let urgency: 'two-days' | 'one-day' | 'today';
+        const daysUntilDue = dueDate.diff(currentDate, 'day');
+        
+        if (daysUntilDue >= 2) {
+          urgency = 'two-days';
+        } else if (daysUntilDue >= 1) {
+          urgency = 'one-day';
+        } else {
+          urgency = 'today';
+        }
+        
+        const alarm = {
+          id: `${autopay.id}-${urgency}-${dayCount}`,
+          paymentId: autopay.id,
+          merchantName: autopay.merchantName,
+          amount: autopay.amount,
+          dueDate: autopay.nextPaymentDate,
+          type: 'autopay' as const,
+          category: autopay.category,
+          urgency,
+          triggerTime: currentDate.valueOf(),
+          dismissed: false,
+          markedAsPaid: false,
+        };
+        
+        alarms.push(alarm);
+        console.log(`[AlarmService] Created alarm: ${alarm.id} at ${currentDate.format('YYYY-MM-DD HH:mm')} (${urgency})`);
       }
-      
-      const alarm = {
-        id: `${autopay.id}-${urgency}-${dayCount}`,
-        paymentId: autopay.id,
-        merchantName: autopay.merchantName,
-        amount: autopay.amount,
-        dueDate: autopay.nextPaymentDate,
-        type: 'autopay' as const,
-        category: autopay.category,
-        urgency,
-        triggerTime: currentDate.valueOf(),
-        dismissed: false,
-        markedAsPaid: false,
-      };
-      
-      alarms.push(alarm);
-      console.log(`[AlarmService] Created alarm: ${alarm.id} at ${currentDate.format('YYYY-MM-DD HH:mm')} (${urgency})`);
       
       // Move to next day at custom time (or custom time for payment day)
       if (currentDate.isSame(dueDate, 'day')) {

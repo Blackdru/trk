@@ -19,3 +19,24 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+subprojects { subproject ->
+    def configureAndroid = {
+        if (subproject.hasProperty('android')) {
+            subproject.android {
+                compileSdkVersion rootProject.ext.compileSdkVersion
+            }
+        }
+    }
+    if (subproject.state.executed) {
+        configureAndroid()
+    } else {
+        subproject.afterEvaluate configureAndroid
+    }
+    project.configurations.configureEach {
+        resolutionStrategy {
+            force 'com.android.billingclient:billing:8.3.0'
+            force 'com.android.billingclient:billing-ktx:8.3.0'
+        }
+    }
+}

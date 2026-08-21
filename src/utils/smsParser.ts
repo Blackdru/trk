@@ -1,5 +1,6 @@
 import type { RawSms, ParsedTransaction } from '../types';
 import { extractFeatures, classifySms } from './smsClassifier';
+import { getSpecialServiceMap } from './merchantPatterns';
 
 /**
  * Parse SMS body to extract UPI transaction details.
@@ -29,9 +30,10 @@ export function parseSms(sms: RawSms): ParsedTransaction | null {
     return null;
   }
   
-  // Reject unknown with very low confidence only
-  if (classification.type === 'unknown' && classification.confidence < 0.50) {
-    console.log(`[SmsParser] Rejected unknown: Very low confidence (${classification.confidence})`);
+  // Reject unknown type — classifySms always returns confidence 0.50 for 'unknown',
+  // so we use <= to actually catch and reject these cases
+  if (classification.type === 'unknown' && classification.confidence <= 0.50) {
+    console.log(`[SmsParser] Rejected unknown: Low confidence (${classification.confidence})`);
     return null;
   }
   
@@ -137,21 +139,23 @@ export function parseSms(sms: RawSms): ParsedTransaction | null {
 }
 
 function isOtpMessage(body: string): boolean {
-  const otpPatterns = [
-    /\botp\b/i,
+  // OTP patterns must be specific to avoid false positives with mandate/subscription SMS
+  const strongOtpPatterns = [
+    /\botp\b.*\b\d{4,6}\b/i,          // "OTP" followed by a number
+    /\b\d{4,6}\b.*\botp\b/i,          // Number followed by "OTP"
     /one.?time.?password/i,
-    /verification code/i,
-    /\b\d{4,6}\b.*(?:valid|expires?)/i,
+    /verification code\s*:?\s*\d{4,6}/i, // "verification code: 1234"
   ];
   
-  // If message is very short and contains OTP indicators
-  if (body.length < 100 && otpPatterns.some(p => p.test(body))) {
-    return true;
+  // Always check for subscription/payment keywords FIRST — never reject these
+  const hasSubscriptionKeywords = /debited|paid|transferred|payment|autopay|mandate|subscription|recurring|e-mandate|nach|emi|debit|charged|billed|renewed|renewal|premium|installment|due|standing instruction|auto-debit/i.test(body);
+  
+  if (hasSubscriptionKeywords) {
+    return false; // Never reject SMS that contain subscription/payment keywords
   }
   
-  // Check if it's primarily an OTP message (not a debit notification)
-  const hasDebitKeywords = /debited|paid|transferred|payment|autopay|mandate/i.test(body);
-  if (!hasDebitKeywords && otpPatterns.some(p => p.test(body))) {
+  // Only reject if it strongly looks like an OTP message
+  if (strongOtpPatterns.some(p => p.test(body))) {
     return true;
   }
 
@@ -159,45 +163,30 @@ function isOtpMessage(body: string): boolean {
 }
 
 function extractAmount(body: string): number | null {
-  // Common amount patterns in Indian bank SMS
+  // Consolidated amount patterns — ordered by specificity (most specific first)
+  // Issue #7: Reduced from 20+ overlapping patterns to ~10 well-ordered ones
   const patterns = [
-    // "Rs 3,275.00" or "Rs.3,275.00" or "Rs. 3,275.00"
-    /(?:rs\.?\s*|inr\s*|₹\s*)([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // "3,275.00 Rs" or "3275 INR"
-    /([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:rs\.?|inr|₹)/i,
-    // "debited by 550.00" format
-    /debited\s+by\s+([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // "debited with Rs.119/-"
-    /debited\s+with\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s*\/-?/i,
+    // Specific context patterns (highest priority)
+    // "debited with Rs.119/-" or "debited by Rs.550"
+    /debited\s+(?:with|by)\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s*\/?-?/i,
+    // "EMI of Rs.12000" / "payment of Rs.1800" / "premium Rs.7500" / "bill Rs.699"
+    /(?:emi|payment|premium|bill|autopay|mandate|subscription|charge)\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
     // "of Rs.15000" or "of INR 15000"
     /of\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // "Rs 399 autopay" or "Rs.399 autopay"
-    /(?:rs\.?\s*|inr\s*|₹\s*)([0-9,]+(?:\.[0-9]{1,2})?)\s+(?:autopay|mandate|debited|for|to|set)/i,
-    // "EMI of Rs.12000"
-    /emi\s+of\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // "payment of Rs.1800"
-    /payment\s+of\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // "premium Rs.7500"
-    /premium\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // "bill Rs.699"
-    /bill\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // "autopay of Rs.5000.00"
-    /autopay\s+of\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // "mandate for Rs.X" or "mandate of Rs.X"
-    /mandate\s+(?:for|of)\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // "subscription of Rs.X" or "subscription for Rs.X"
-    /subscription\s+(?:of|for)\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // "set up for Rs.X to Y" or "setup for Rs.X"
+    /set\s*up\s+for\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
     // "charged Rs.X" or "charge of Rs.X"
     /charg(?:ed|e)\s+(?:of\s+)?(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
     // "amount Rs.X" or "amt Rs.X"
     /(?:amount|amt)\.?\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // "INR X has been" or "Rs.X has been"
+    // "Rs.X has been" or "INR X has been"
     /(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+has\s+been/i,
-    // "setup for Rs.X" or "set up for Rs.X"
-    /set\s*up\s+for\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    // Generic debited/amount patterns (last resort)
-    /debited.*?([0-9,]+(?:\.[0-9]{1,2})?)/i,
-    /amount.*?([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // Generic: "Rs 3,275.00" or "Rs.3,275.00" or "₹3275" (broad catch-all WITH currency)
+    /(?:rs\.?\s*|inr\s*|₹\s*)([0-9,]+(?:\.[0-9]{1,2})?)/i,
+    // Generic: "3,275.00 Rs" or "3275 INR" (amount before currency)
+    /([0-9,]+(?:\.[0-9]{1,2})?)\s*(?:rs\.?|inr|₹)/i,
+    // Issue #4: Last resort — always REQUIRE currency indicator (removed optional prefix)
+    /debited\s+(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)/i,
   ];
 
   for (const pattern of patterns) {
@@ -205,7 +194,9 @@ function extractAmount(body: string): number | null {
     if (match) {
       const amountStr = match[1].replace(/,/g, '');
       const amount = parseFloat(amountStr);
-      if (!isNaN(amount) && amount > 0 && amount < 10000000) {
+      // Validate: must be positive, and reasonable for a subscription/payment
+      // Upper bound 10,00,000 (10 lakh) to avoid matching account numbers
+      if (!isNaN(amount) && amount > 0 && amount < 1000000) {
         return amount;
       }
     }
@@ -214,64 +205,74 @@ function extractAmount(body: string): number | null {
   return null;
 }
 
+// Issue #5: Tagged pattern objects instead of fragile regex.source inspection
+interface DueDatePattern {
+  regex: RegExp;
+  format: 'iso' | 'scheduled-dmy' | 'dmy-named' | 'dmy-numeric';
+}
+
 function extractDueDate(body: string): number | null {
-  // Patterns for extracting due dates from SMS
-  const patterns = [
+  const patterns: DueDatePattern[] = [
+    // "due on 2026-02-05" (ISO YYYY-MM-DD format)
+    { regex: /(?:is\s+)?due\s+(?:on|by)\s+(\d{4})-(\d{1,2})-(\d{1,2})/i, format: 'iso' },
     // "due on 05 April 2026" or "is due on 05 April 2026"
-    /(?:is\s+)?due\s+on\s+(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/i,
+    { regex: /(?:is\s+)?due\s+on\s+(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/i, format: 'dmy-named' },
     // "due on 05-Mar-26" or "is due on 05-Mar-26" or "due on 05-Mar-2026"
-    /(?:is\s+)?due\s+on\s+(\d{1,2})-([A-Za-z]{3}|\d{2})-(\d{2,4})/i,
+    { regex: /(?:is\s+)?due\s+on\s+(\d{1,2})-([A-Za-z]{3}|\d{2})-(\d{2,4})/i, format: 'dmy-numeric' },
+    // "due by 05.02.2026" or "due by 05-02-2026" (DD.MM.YYYY / DD-MM-YYYY)
+    { regex: /(?:is\s+)?due\s+(?:on|by)\s+(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/i, format: 'dmy-numeric' },
     // "scheduled on .03/04/26" or "scheduled on 03/04/26" (DD/MM/YY format)
-    /scheduled\s+on\s+\.?(\d{1,2})\/(\d{1,2})\/(\d{2,4})/i,
+    { regex: /scheduled\s+on\s+\.?(\d{1,2})\/(\d{1,2})\/(\d{2,4})/i, format: 'scheduled-dmy' },
     // "scheduled for 03/04/26" or "scheduled for 03-04-26"
-    /scheduled\s+for\s+(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/i,
+    { regex: /scheduled\s+for\s+(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/i, format: 'scheduled-dmy' },
     // "debit on 05 April" or "debit on 05-Apr"
-    /debit\s+on\s+(\d{1,2})[\s-]([A-Za-z]{3,})/i,
-    // "payment on 05/04/26" or "payment on 05-04-26"
-    /payment\s+on\s+(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/i,
+    { regex: /debit\s+on\s+(\d{1,2})[\s-]([A-Za-z]{3,})/i, format: 'dmy-named' },
+    // "payment on 05/04/26"
+    { regex: /payment\s+on\s+(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/i, format: 'dmy-numeric' },
+    // "debit on 5th Feb" or "due on 5th February 2026" (ordinal day)
+    { regex: /(?:due|debit)\s+(?:on|by)\s+(\d{1,2})(?:st|nd|rd|th)\s+([A-Za-z]{3,})(?:\s+(\d{4}))?/i, format: 'dmy-named' },
+    // "on 05.02.2026" (DD.MM.YYYY with dots — generic)
+    { regex: /on\s+(\d{1,2})\.(\d{1,2})\.(\d{2,4})/i, format: 'dmy-numeric' },
   ];
 
-  for (const pattern of patterns) {
-    const match = body.match(pattern);
+  for (const { regex, format } of patterns) {
+    const match = body.match(regex);
     if (match) {
       try {
         let day: number, month: number, year: number;
         
-        if (pattern.source.includes('scheduled') && pattern.source.includes('\\/')) {
-          // Format: DD/MM/YY or DD/MM/YYYY (Indian format)
+        if (format === 'iso') {
+          year = parseInt(match[1], 10);
+          month = parseInt(match[2], 10) - 1;
+          day = parseInt(match[3], 10);
+        } else if (format === 'scheduled-dmy') {
           day = parseInt(match[1], 10);
-          month = parseInt(match[2], 10) - 1; // JS months are 0-indexed
+          month = parseInt(match[2], 10) - 1;
           year = parseInt(match[3], 10);
-          // Handle 2-digit year
-          if (year < 100) {
-            year = year + 2000;
-          }
-        } else if (match[2].match(/^[A-Za-z]+$/)) {
-          // Format: DD Month YYYY or DD-Mon-YY
+          if (year < 100) year += 2000;
+        } else if (match[2] && match[2].match(/^[A-Za-z]+$/)) {
+          // Named month: DD Month YYYY or DDth Month YYYY
           day = parseInt(match[1], 10);
           month = parseMonth(match[2]);
           year = match[3] ? parseInt(match[3], 10) : new Date().getFullYear();
-          // Handle 2-digit year for month name format too!
-          if (year < 100) {
-            year = year + 2000;
-          }
+          if (year < 100) year += 2000;
         } else {
-          // Format: DD-MM-YY or DD-MM-YYYY
+          // Numeric: DD-MM-YY or DD-MM-YYYY or DD.MM.YYYY
           day = parseInt(match[1], 10);
           const monthStr = match[2];
-          if (monthStr.match(/^[A-Za-z]{3}$/)) {
+          if (monthStr && monthStr.match(/^[A-Za-z]{3}$/)) {
             month = parseMonth(monthStr);
           } else {
             month = parseInt(monthStr, 10) - 1;
           }
           year = match[3] ? parseInt(match[3], 10) : new Date().getFullYear();
-          // Handle 2-digit year - assume 20xx for years 00-99
-          if (year < 100) {
-            year = year + 2000;
-          }
+          if (year < 100) year += 2000;
         }
         
-        if (month === -1) continue; // Invalid month
+        if (month === -1) continue; // Invalid month name
+        
+        // Issue #11: Validate day/month ranges to prevent silent date wrapping
+        if (day < 1 || day > 31 || month < 0 || month > 11) continue;
         
         const dueDate = new Date(year, month, day);
         if (!isNaN(dueDate.getTime())) {
@@ -307,69 +308,46 @@ function parseMonth(monthStr: string): number {
 }
 
 function extractMerchantName(body: string): string | null {
-  // Special handling for specific services (check before patterns)
-  const specialServices = [
-    { pattern: /branch\s*intl|branch\s*international/i, name: 'Branch' },
-    { pattern: /story\s*tv/i, name: 'Story TV' },
-    { pattern: /true\s+credits|true\s+balance/i, name: 'True Credits' },
-    { pattern: /moneyview/i, name: 'Moneyview' },
-    { pattern: /jiohotstar|jio.*hotstar/i, name: 'JioHotstar' },
-    { pattern: /google\s*play/i, name: 'Google Play' },
-    { pattern: /google\s*one/i, name: 'Google One' },
-    { pattern: /youtube\s*premium/i, name: 'YouTube Premium' },
-    { pattern: /youtube\s*music/i, name: 'YouTube Music' },
-    { pattern: /amazon\s*prime|prime\s*video/i, name: 'Amazon Prime' },
-    { pattern: /disney.*hotstar|hotstar.*disney|disney\+|disney\s+hotstar/i, name: 'Disney+ Hotstar' },
-    { pattern: /apple\s*music/i, name: 'Apple Music' },
-    { pattern: /apple\s*tv/i, name: 'Apple TV+' },
-    { pattern: /microsoft\s*365|office\s*365/i, name: 'Microsoft 365' },
-    { pattern: /adobe\s*creative\s*cloud|adobe/i, name: 'Adobe Creative Cloud' },
-    { pattern: /\bspotify\b/i, name: 'Spotify' },
-    { pattern: /spotify\s*premium/i, name: 'Spotify' },
-    { pattern: /\bnetflix\b/i, name: 'Netflix' },
-    { pattern: /netflix\s*subscription/i, name: 'Netflix' },
-    { pattern: /sony\s*liv|sonyliv/i, name: 'SonyLIV' },
-    { pattern: /\bzee\s*5|zee5\b/i, name: 'Zee5' },
-    { pattern: /\bvoot\b/i, name: 'Voot' },
-    { pattern: /mx\s*player/i, name: 'MX Player' },
-    { pattern: /gaana\s*plus|gaana/i, name: 'Gaana' },
-    { pattern: /cult\.?fit|cultfit/i, name: 'Cult.fit' },
-    { pattern: /swiggy\s*one/i, name: 'Swiggy One' },
-    { pattern: /zomato\s*gold/i, name: 'Zomato Gold' },
-    { pattern: /indane\s*gas|indane/i, name: 'Indane Gas' },
-    { pattern: /act\s*fibernet|act\s*fiber/i, name: 'ACT Fibernet' },
-    { pattern: /jio\s*fiber/i, name: 'Jio Fiber' },
-    { pattern: /airtel\s*fiber/i, name: 'Airtel Fiber' },
-    { pattern: /airtel\s*postpaid/i, name: 'Airtel Postpaid' },
-    { pattern: /vodafone\s*idea|vi\s*postpaid/i, name: 'Vodafone Idea' },
-    { pattern: /\bbescom\b/i, name: 'BESCOM' },
-    { pattern: /bescom\s*electricity/i, name: 'BESCOM' },
-    { pattern: /tata\s*power/i, name: 'Tata Power' },
-    { pattern: /hdfc\s*life/i, name: 'HDFC Life' },
-    { pattern: /icici\s*prudential/i, name: 'ICICI Prudential' },
-    { pattern: /max\s*bupa/i, name: 'Max Bupa' },
-    { pattern: /home\s*loan\s*emi/i, name: 'Home Loan' },
-    { pattern: /car\s*loan\s*emi/i, name: 'Car Loan' },
-    { pattern: /personal\s*loan\s*emi/i, name: 'Personal Loan' },
-    { pattern: /credit\s*card\s*autopay/i, name: 'Credit Card' },
-    { pattern: /\blic\b.*(?:insurance|premium|policy)/i, name: 'LIC' },
-    { pattern: /\baws\b|aws\s*india/i, name: 'AWS India' },
-    { pattern: /google\s*cloud|gcp/i, name: 'Google Cloud' },
-  ];
+  // Issue #1: Cap input length to prevent ReDoS on very long SMS
+  const cappedBody = body.length > 500 ? body.substring(0, 500) : body;
+
+  // Issue #6: Use single source of truth from merchantPatterns.ts
+  const specialServices = getSpecialServiceMap();
   
   for (const service of specialServices) {
-    if (service.pattern.test(body)) {
+    if (service.pattern.test(cappedBody)) {
       return service.name;
     }
   }
   
   // Handle plain "Google" (not Google Play/One/Cloud)
-  if (/\bgoogle\b/i.test(body) && !/google\s*(?:play|one|cloud)/i.test(body)) {
+  if (/\bgoogle\b/i.test(cappedBody) && !/google\s*(?:play|one|cloud)/i.test(cappedBody)) {
     return 'Google';
   }
   
+  // Also check for services not in merchantPatterns but common in SMS
+  const extraServices = [
+    { pattern: /branch\s*intl|branch\s*international/i, name: 'Branch' },
+    { pattern: /true\s+credits|true\s+balance/i, name: 'True Credits' },
+    { pattern: /\bmoneyview\b/i, name: 'Moneyview' },
+    { pattern: /home\s*loan\s*emi/i, name: 'Home Loan' },
+    { pattern: /car\s*loan\s*emi/i, name: 'Car Loan' },
+    { pattern: /personal\s*loan\s*emi/i, name: 'Personal Loan' },
+    { pattern: /credit\s*card\s*autopay/i, name: 'Credit Card' },
+  ];
+  
+  for (const service of extraServices) {
+    if (service.pattern.test(cappedBody)) {
+      return service.name;
+    }
+  }
+  
+  // Issue #1: Use cappedBody for all regex matching to prevent ReDoS
   // Common patterns for merchant names in UPI SMS
+  // NOTE: Order matters — more specific patterns first, generic patterns last
   const patterns = [
+    // "Recurring payment request with X... for Y... amounting to Rs. X has been initiated"
+    /recurring\s+payment\s+request\s+with\s+([A-Za-z0-9\s&.+-]+?)(?:\s+for|\s+subscription|\s+amounting)/i,
     // "Your next EMI of Rs.X" or "next payment of Rs.X" - HIGHEST PRIORITY for reminders
     /(?:your\s+)?next\s+(?:emi|payment|bill)\s+of\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+is\s+due.*?-\s*([A-Za-z0-9\s&.+-]+?)(?:\s*$)/i,
     // "UPI AutoPay for X debit" - HIGH PRIORITY for scheduled payments
@@ -380,8 +358,6 @@ function extractMerchantName(body: string): string | null {
     /payment\s+of\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+has\s+been\s+setup/i,
     // "of Rs.X for X has been" pattern
     /of\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+has\s+been/i,
-    // "UPI AutoPay for X debit" pattern - HIGH PRIORITY for reminders
-    /upi\s+autopay\s+for\s+([A-Za-z0-9\s&.+-]+?)\s+debit/i,
     // "Your X EMI is due" pattern - HIGH PRIORITY
     /your\s+([A-Za-z0-9\s&.+-]+?)\s+emi\s+is\s+due/i,
     // "Pay on X app" pattern
@@ -416,16 +392,16 @@ function extractMerchantName(body: string): string | null {
     /mandate\s+approved:\s+(?:rs\.?|inr|₹)\s*[0-9,]+(?:\.[0-9]{1,2})?\s+to\s+([A-Za-z0-9\s&.+-]+?)@/i,
     // "Your X subscription" pattern
     /your\s+([A-Za-z0-9\s&.+-]+?)\s+subscription/i,
-    // "X subscription renewed" pattern
-    /([A-Za-z0-9\s&.+-]+?)\s+subscription\s+(?:renewed|active|via)/i,
-    // "X subscription renewed via autopay" pattern
+    // "X subscription renewed via autopay" pattern (specific before generic)
     /([A-Za-z0-9\s&.+-]+?)\s+subscription\s+renewed\s+via/i,
+    // "X subscription renewed/active" pattern
+    /([A-Za-z0-9\s&.+-]+?)\s+subscription\s+(?:renewed|active|via)/i,
     // "for X starting" pattern
     /for\s+([A-Za-z0-9\s&.+-]+?)\s+starting/i,
-    // "Your X autopay of" pattern - MUST BE BEFORE generic patterns
-    /your\s+([A-Za-z0-9\s&.+-]+?)\s+autopay\s+(?:of|mandate)/i,
-    // "X autopay mandate for Rs" pattern
+    // "Your X autopay mandate for Rs" pattern
     /your\s+([A-Za-z0-9\s&.+-]+?)\s+autopay\s+mandate\s+for/i,
+    // "Your X autopay of" pattern
+    /your\s+([A-Za-z0-9\s&.+-]+?)\s+autopay\s+(?:of|mandate)/i,
     // "Your X EMI" pattern
     /your\s+([A-Za-z0-9\s&.+-]+?)\s+emi/i,
     // "X EMI of" pattern
@@ -434,6 +410,8 @@ function extractMerchantName(body: string): string | null {
     /([A-Za-z0-9\s&.+-]+?)\s+emi\s+mandate/i,
     // "debited for X" pattern - for autopay/debited messages
     /(?:debited|paid|processed)\s+for\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:on|via|from|policy|consumer|connection|loan|card|mobile|emi|bill|subscription|\.))/i,
+    // "charged for X" or "billed for X" pattern
+    /(?:charged|billed)\s+(?:for\s+)?([A-Za-z0-9\s&.+-]+?)(?:\s+(?:on|via|from|rs|inr|₹|subscription|\.))/i,
     // "for your X" pattern (loans)
     /for\s+your\s+([A-Za-z0-9\s&.+-]+?)(?:\s+(?:debited|from|loan|a\/c|emi))/i,
     // "X bill payment" pattern
@@ -446,8 +424,6 @@ function extractMerchantName(body: string): string | null {
     /([A-Za-z0-9\s&.+-]+?)\s+(?:booking|cylinder)\s+payment/i,
     // "X Card autopay" pattern
     /([A-Za-z0-9\s&.+-]+?)\s+card\s+autopay/i,
-    // "Your X autopay of" pattern
-    /your\s+([A-Za-z0-9\s&.+-]+?)\s+autopay\s+of/i,
     // "X autopay mandate for" pattern
     /([A-Za-z0-9\s&.+-]+?)\s+autopay\s+mandate\s+for/i,
     // "X autopay of" pattern
@@ -483,17 +459,33 @@ function extractMerchantName(body: string): string | null {
   ];
 
   for (const pattern of patterns) {
-    const match = body.match(pattern);
+    const match = cappedBody.match(pattern);
     if (match) {
       const name = match[1]?.trim();
       if (!name) continue;
       
-      // Clean up the merchant name
+      // Clean up the merchant name — strip bank noise and formatting artifacts
       let cleanName = name
         .replace(/\s+/g, ' ')
         .replace(/^(mr|ms|mrs|dr)\.?\s*/i, '')
-        .replace(/\s*\/-?\s*$/, '') // Remove trailing /-
-        .replace(/\s*\.\s*$/, '') // Remove trailing period
+        .replace(/\s*\/-?\s*$/, '')         // Remove trailing /-
+        .replace(/\s*\.\s*$/, '')            // Remove trailing period
+        .replace(/\s*Refno.*$/i, '')         // Remove "Refno..." suffix
+        .replace(/\s*UMN:.*$/i, '')          // Remove "UMN:..." suffix
+        .replace(/\s*Refer\s.*$/i, '')       // Remove "Refer..." suffix
+        .replace(/\s*Regards.*$/i, '')       // Remove "Regards..." suffix
+        .replace(/\s*If not you.*$/i, '')    // Remove "If not you..." suffix
+        .replace(/\s*kindly.*$/i, '')        // Remove "kindly..." suffix
+        .replace(/\s*Download.*$/i, '')      // Remove "Download..." suffix
+        .replace(/\s*Avl\s+Bal.*$/i, '')     // Remove "Avl Bal..." suffix
+        .replace(/\s*-\s*$/, '')             // Remove trailing dash
+        // Issue #8: Additional cleanup for common bank SMS noise
+        .replace(/\s*(?:a\/c|ac|acct)[\s:]*(?:xx+\d+|\d{4,})/i, '') // Account number fragments
+        .replace(/\s*(?:dt|date)[\s.:]*\d{1,2}[\/\-]\d{1,2}[\/\-]?\d{0,4}/i, '') // Date fragments
+        .replace(/\s*(?:rs\.?|inr|₹)\s*[\d,]+(?:\.\d+)?/i, '') // Currency amount leaking into name
+        .replace(/\s*xx+\d+/i, '')           // Masked card/account numbers
+        .replace(/\s*w\.?e\.?f\.?\s*/i, '')  // "with effect from" abbreviation
+        .replace(/\s*on\s+\d{1,2}[\/\-.][\dA-Za-z]+/i, '') // "on DD/MM" date suffix
         .trim();
       
       // Skip if it's just numbers or too short

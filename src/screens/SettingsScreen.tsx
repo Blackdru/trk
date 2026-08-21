@@ -192,24 +192,18 @@ export function SettingsScreen({
               end={{ x: 1, y: 1 }}
               style={[styles.upgradeCard, shadows.md]}
             >
-              <View style={styles.upgradeIconWrapper}>
-                <Icon name="star" size={20} color={colors.text.inverse} />
-              </View>
               <View style={styles.upgradeInfo}>
                 <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
                 <Text style={styles.upgradeSubtitle}>
                   Unlimited subscriptions • Ad-free • Autopay tracking
                 </Text>
               </View>
-              <Icon name="chevron-right" size={18} color={colors.text.inverse} />
+              <Icon name="chevron-right" size={18} color={colors.text.inverse} style={{ marginLeft: spacing.sm }} />
             </LinearGradient>
           </TouchableOpacity>
         ) : (
           <Card gradient={[colors.success[50], colors.success[100]]}>
             <View style={styles.proContent}>
-              <View style={styles.proIconWrapper}>
-                <Icon name="check-circle" size={20} color={colors.success[600]} />
-              </View>
               <View style={styles.proInfo}>
                 <Text style={styles.proTitle}>Pro Member</Text>
                 <Text style={styles.proSubtitle}>
@@ -225,9 +219,6 @@ export function SettingsScreen({
         <Text style={styles.sectionTitle}>NOTIFICATIONS</Text>
         <Card>
           <View style={styles.row}>
-            <View style={[styles.iconWrapper, { backgroundColor: colors.primary[100] }]}>
-              <Icon name="bell" size={18} color={colors.primary[600]} />
-            </View>
             <View style={styles.rowInfo}>
               <Text style={styles.rowTitle}>Payment Alarms</Text>
               <Text style={styles.rowSubtitle}>Daily alarms • Works even when app is closed</Text>
@@ -250,9 +241,6 @@ export function SettingsScreen({
                 onPress={() => setShowBeforeDueTimePicker(true)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.iconWrapper, { backgroundColor: colors.warning[100] }]}>
-                  <Icon name="clock" size={18} color={colors.warning[600]} />
-                </View>
                 <View style={styles.rowInfo}>
                   <Text style={styles.rowTitle}>Alarm Time (Before Due)</Text>
                   <Text style={styles.rowSubtitle}>For 1-2 days before payment date</Text>
@@ -270,9 +258,6 @@ export function SettingsScreen({
                 onPress={() => setShowDueDateTimePicker(true)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.iconWrapper, { backgroundColor: colors.error[100] }]}>
-                  <Icon name="alert-circle" size={18} color={colors.error[600]} />
-                </View>
                 <View style={styles.rowInfo}>
                   <Text style={styles.rowTitle}>Alarm Time (Due Date)</Text>
                   <Text style={styles.rowSubtitle}>On payment due date</Text>
@@ -292,9 +277,6 @@ export function SettingsScreen({
             onPress={() => setShowReminderInfo(true)}
             activeOpacity={0.7}
           >
-            <View style={[styles.iconWrapper, { backgroundColor: colors.success[100] }]}>
-              <Icon name="info" size={18} color={colors.success[600]} />
-            </View>
             <View style={styles.rowInfo}>
               <Text style={styles.rowTitle}>How Alarms Work</Text>
               <Text style={styles.rowSubtitle}>View alarm schedule & features</Text>
@@ -313,13 +295,6 @@ export function SettingsScreen({
                 activeOpacity={0.7}
                 disabled={checkingBatteryOpt}
               >
-                <View style={[styles.iconWrapper, { backgroundColor: isBatteryOptDisabled ? colors.success[100] : colors.warning[100] }]}>
-                  <Icon 
-                    name={isBatteryOptDisabled ? "battery-charging" : "battery"} 
-                    size={18} 
-                    color={isBatteryOptDisabled ? colors.success[600] : colors.warning[600]} 
-                  />
-                </View>
                 <View style={styles.rowInfo}>
                   <Text style={styles.rowTitle}>Battery Optimization</Text>
                   <Text style={[
@@ -350,9 +325,6 @@ export function SettingsScreen({
         <Text style={styles.sectionTitle}>PERMISSIONS</Text>
         <Card>
           <View style={styles.row}>
-            <View style={[styles.iconWrapper, { backgroundColor: colors.success[100] }]}>
-              <Icon name="message-square" size={18} color={colors.success[600]} />
-            </View>
             <View style={styles.rowInfo}>
               <Text style={styles.rowTitle}>SMS Access</Text>
               <Text style={[styles.rowSubtitle, hasSmsPermission && styles.permissionGranted]}>
@@ -384,9 +356,6 @@ export function SettingsScreen({
         <TouchableOpacity onPress={handlePrivacyPolicy}>
           <Card gradient={[colors.success[50], colors.background]}>
             <View style={styles.privacyHeader}>
-              <View style={[styles.iconWrapper, { backgroundColor: colors.success[100] }]}>
-                <Icon name="shield" size={18} color={colors.success[600]} />
-              </View>
               <Text style={styles.privacyTitle}>Privacy & Security</Text>
               <Icon name="external-link" size={16} color={colors.text.tertiary} style={styles.privacyLinkIcon} />
             </View>
@@ -406,9 +375,6 @@ export function SettingsScreen({
         <TouchableOpacity onPress={handleRateApp}>
           <Card>
             <View style={styles.row}>
-              <View style={[styles.iconWrapper, { backgroundColor: colors.warning[100] }]}>
-                <Icon name="star" size={18} color={colors.warning[600]} />
-              </View>
               <View style={styles.rowInfo}>
                 <Text style={styles.rowTitle}>Rate the App</Text>
                 <Text style={styles.rowSubtitle}>Share your feedback on Play Store</Text>
@@ -423,9 +389,6 @@ export function SettingsScreen({
         <TouchableOpacity onPress={() => setShowContactModal(true)}>
           <Card>
             <View style={styles.row}>
-              <View style={[styles.iconWrapper, { backgroundColor: colors.primary[100] }]}>
-                <Icon name="mail" size={18} color={colors.primary[600]} />
-              </View>
               <View style={styles.rowInfo}>
                 <Text style={styles.rowTitle}>Contact</Text>
                 <Text style={styles.rowSubtitle}>Get in touch with us</Text>

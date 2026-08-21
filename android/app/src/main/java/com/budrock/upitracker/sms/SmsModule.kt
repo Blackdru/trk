@@ -1,40 +1,107 @@
 package com.budrock.upitracker.sms
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.provider.Telephony
 import androidx.core.content.ContextCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.facebook.react.bridge.*
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import java.util.Calendar
 
 /**
  * Native Android module for reading SMS messages.
- * 
+ *
  * PRIVACY NOTICE: This module reads SMS ONLY to detect UPI subscription payments.
  * All processing happens locally on the device. No SMS data is transmitted externally.
- * 
- * We filter SMS early using UPI-related keywords to minimize data exposure.
+ *
+ * We filter SMS early using UPI-related keywords to minimise data exposure.
+ *
+ * Live SMS delivery mechanism:
+ *   SmsReceiver (system BroadcastReceiver) → LocalBroadcastManager → SmsModule → JS EventEmitter
+ *   This ensures live delivery regardless of whether SmsReceiver was instantiated before or after
+ *   SmsModule, and survives app restarts without a stale static reference.
  */
 class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
     companion object {
         const val NAME = "SmsModule"
         const val EVENT_SMS_RECEIVED = "onSmsReceived"
-        
-        // Keywords for early filtering - cast a wide net, JS classifier will filter precisely
-        // Include debit/payment keywords to catch all potential subscription SMS
+
+        // Keywords for early filtering — cast a WIDE net, JS classifier will filter precisely
+        // Being too strict here silently drops SMS before the JS layer ever sees them
         val UPI_KEYWORDS = listOf(
-            "autopay", "mandate", "subscription", "e-mandate",
-            "recurring", "auto-debit", "automatic payment",
-            "standing instruction", "nach", "monthly", "yearly",
-            "quarterly", "weekly", "debited", "emi", "debit"
+            // Core autopay/mandate keywords
+            "autopay", "auto-pay", "auto pay", "mandate", "e-mandate", "emandate",
+            "subscription", "recurring", "auto-debit", "autodebit", "automatic payment",
+            "standing instruction", "nach", "e-nach", "enach", "umrn", "umn",
+            // Temporal/billing keywords
+            "monthly", "yearly", "quarterly", "weekly", "annual", "per month",
+            // Transaction keywords
+            "debited", "debit", "emi", "payment", "charged", "charge",
+            "billed", "billing", "premium", "installment",
+            // Status keywords
+            "renewed", "renewal", "executed", "processed",
+            // Due/scheduled keywords
+            "due", "overdue", "scheduled",
+            // Payment method keywords
+            "si debit", "bill pay", "billpay", "upi",
+            // Financial service keywords
+            "loan", "credit card", "insurance",
+            // App-specific keywords (common UPI apps)
+            "cred"
         )
     }
 
+    /** LocalBroadcastReceiver that listens for SMS forwarded by SmsReceiver */
+    private val localSmsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != SmsReceiver.ACTION_SMS_ARRIVED) return
+
+            val body = intent.getStringExtra(SmsReceiver.EXTRA_BODY) ?: return
+            val date = intent.getDoubleExtra(SmsReceiver.EXTRA_DATE, 0.0)
+            val address = intent.getStringExtra(SmsReceiver.EXTRA_ADDRESS) ?: ""
+
+            android.util.Log.d(NAME, "Local SMS broadcast received from $address")
+
+            val smsData = Arguments.createMap().apply {
+                putString("body", body)
+                putDouble("date", date)
+                putString("address", address)
+            }
+            emitSmsEvent(smsData)
+        }
+    }
+
+    init {
+        // Register the local receiver immediately so we never miss a broadcast
+        LocalBroadcastManager.getInstance(reactContext)
+            .registerReceiver(
+                localSmsReceiver,
+                IntentFilter(SmsReceiver.ACTION_SMS_ARRIVED)
+            )
+    }
+
     override fun getName(): String = NAME
+
+    /**
+     * Unregister local receiver when the module is invalidated (e.g. app reload / hot reload)
+     */
+    override fun invalidate() {
+        super.invalidate()
+        try {
+            LocalBroadcastManager.getInstance(reactApplicationContext)
+                .unregisterReceiver(localSmsReceiver)
+        } catch (e: Exception) {
+            android.util.Log.w(NAME, "Error unregistering local receiver", e)
+        }
+    }
 
     /**
      * Check if both READ_SMS and RECEIVE_SMS permissions are granted
@@ -55,7 +122,7 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     /**
      * Read SMS messages from inbox (last 6 months).
      * Only returns SMS containing UPI-related keywords to protect privacy.
-     * 
+     *
      * @return Array of SMS objects with body, date, and address fields
      */
     @ReactMethod
@@ -77,17 +144,18 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
             val smsArray = Arguments.createArray()
             val uri = Uri.parse("content://sms/inbox")
-            
-            // Calculate timestamp for 28 days ago
-            val twentyEightDaysAgo = Calendar.getInstance().apply {
-                add(Calendar.DAY_OF_MONTH, -28)
+
+            // Calculate timestamp for 180 days ago (6 months)
+            // Need longer history to detect quarterly/yearly subscriptions
+            val sixMonthsAgo = Calendar.getInstance().apply {
+                add(Calendar.DAY_OF_MONTH, -180)
             }.timeInMillis
 
             val cursor: Cursor? = reactApplicationContext.contentResolver.query(
                 uri,
                 arrayOf("body", "date", "address"),
                 "date > ?",
-                arrayOf(twentyEightDaysAgo.toString()),
+                arrayOf(sixMonthsAgo.toString()),
                 "date DESC"
             )
 
@@ -121,8 +189,8 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
             // Also add any pending SMS that were received when app was closed
             val pendingSms = SmsReceiver.getPendingSms(reactApplicationContext)
-            android.util.Log.d("SmsModule", "Found ${pendingSms.size} pending SMS from cache")
-            
+            android.util.Log.d(NAME, "Found ${pendingSms.size} pending SMS from cache")
+
             for (sms in pendingSms) {
                 val smsMap = Arguments.createMap().apply {
                     putString("body", sms["body"] as String)
@@ -138,11 +206,25 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
                 SmsReceiver.clearPendingSms(reactApplicationContext)
             }
 
-            android.util.Log.d("SmsModule", "Scanned $totalCount SMS, found $matchedCount UPI-related messages (including ${pendingSms.size} cached)")
+            android.util.Log.d(NAME, "Scanned $totalCount SMS, found $matchedCount UPI-related messages (including ${pendingSms.size} cached)")
             promise.resolve(smsArray)
         } catch (e: Exception) {
-            android.util.Log.e("SmsModule", "Error reading SMS", e)
+            android.util.Log.e(NAME, "Error reading SMS", e)
             promise.reject("SMS_READ_ERROR", e.message, e)
+        }
+    }
+
+    /**
+     * Clear the incremental-sync hash cache so all SMS are re-processed on next sync.
+     * Useful for debugging or after the user resets subscription data.
+     */
+    @ReactMethod
+    fun clearSyncCache(promise: Promise) {
+        try {
+            SmsReceiver.clearPendingSms(reactApplicationContext)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("CLEAR_CACHE_ERROR", e.message, e)
         }
     }
 
@@ -157,7 +239,6 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
     /**
      * Emit SMS event to React Native JS layer.
-     * Called by SmsReceiver when new SMS arrives.
      */
     fun emitSmsEvent(smsData: WritableMap) {
         reactApplicationContext

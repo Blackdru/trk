@@ -188,8 +188,11 @@ export function useSmsSync() {
     );
     
     if (existingSub) {
-      // Update existing subscription
-      const nextRenewal = calculateNextRenewal(transaction.date, existingSub.billingCycle);
+      // Update existing subscription - use current nextRenewalDate as base if future
+      const baseDate = existingSub.nextRenewalDate && existingSub.nextRenewalDate > transaction.date
+        ? existingSub.nextRenewalDate
+        : transaction.date;
+      const nextRenewal = calculateNextRenewal(baseDate, existingSub.billingCycle);
       const updated = subscriptions.map(s =>
         s.id === existingSub.id
           ? { ...s, lastPaymentDate: transaction.date, nextRenewalDate: nextRenewal }

@@ -97,7 +97,7 @@ export async function scheduleRenewalNotification(subscription: Subscription): P
               id: 'default',
             },
             smallIcon: 'ic_notification',
-            color: '#5B67CA',
+            color: '#6366D6',
           },
         },
         trigger

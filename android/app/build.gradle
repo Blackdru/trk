@@ -87,9 +87,9 @@ android {
     defaultConfig {
         applicationId "com.budrock.upitracker"
         minSdkVersion rootProject.ext.minSdkVersion
-        targetSdkVersion 35  // Required for Google Play (Android 15) - Updated Feb 2026
-        versionCode 28
-        versionName "2.8"
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 31
+        versionName "3.1"
     }
     signingConfigs {
         debug {
@@ -127,6 +127,12 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // Force Google Play Billing Library version to 8.3.0+ for Play Store compliance
+    implementation("com.android.billingclient:billing-ktx:8.3.0")
+
+    // LocalBroadcastManager for intra-process SMS forwarding (SmsReceiver → SmsModule)
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 }
 
 

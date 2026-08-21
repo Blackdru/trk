@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#F4F4F4',
+    borderColor: '#ECEEF2',
   },
   image: {
     backgroundColor: '#FFFFFF',

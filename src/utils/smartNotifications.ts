@@ -163,7 +163,7 @@ export async function showPersistentPaymentNotification(
       pressAction: {
         id: 'default',
       },
-      color: '#5B67CA',
+      color: '#6366D6',
       style: {
         type: AndroidStyle.BIGTEXT,
         text: lines.join('\n'),
@@ -239,7 +239,7 @@ export async function schedulePaymentNotifications(
             pressAction: {
               id: 'default',
             },
-            color: '#5B67CA',
+            color: '#6366D6',
             sound: 'default',
             vibrationPattern: [300, 500],
           },
@@ -296,7 +296,7 @@ export async function scheduleDailyDigest(
           pressAction: {
             id: 'default',
           },
-          color: '#5B67CA',
+          color: '#6366D6',
           style: {
             type: AndroidStyle.INBOX,
             lines,

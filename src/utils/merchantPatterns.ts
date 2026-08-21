@@ -1,6 +1,7 @@
 /**
- * Enhanced merchant detection patterns
- * Supports more services and better accuracy
+ * Enhanced merchant detection patterns — SINGLE SOURCE OF TRUTH
+ * All other files should import from here instead of maintaining their own lists.
+ * Supports more services and better accuracy.
  */
 
 export interface MerchantPattern {
@@ -72,6 +73,19 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'subscription',
     isSubscription: true,
   },
+  // Music
+  {
+    name: 'Gaana',
+    patterns: [/gaana\s*plus|\bgaana\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Wynk Music',
+    patterns: [/\bwynk\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
   
   // Indian OTT Platforms
   {
@@ -134,6 +148,24 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'subscription',
     isSubscription: true,
   },
+  {
+    name: 'Alt Balaji',
+    patterns: [/alt\s*balaji/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'JioCinema',
+    patterns: [/jio\s*cinema/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'JioSaavn',
+    patterns: [/jio\s*saavn/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
   
   // Cloud Storage & Software
   {
@@ -156,7 +188,25 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
   },
   {
     name: 'Canva Pro',
-    patterns: [/canva/i],
+    patterns: [/\bcanva\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'GitHub',
+    patterns: [/\bgithub\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Notion',
+    patterns: [/\bnotion\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'iCloud',
+    patterns: [/\bicloud\b/i],
     category: 'subscription',
     isSubscription: true,
   },
@@ -174,6 +224,18 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'subscription',
     isSubscription: true,
   },
+  {
+    name: 'Scribd',
+    patterns: [/\bscribd\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Medium',
+    patterns: [/\bmedium\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
   
   // Fitness & Health
   {
@@ -185,6 +247,12 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
   {
     name: 'HealthifyMe',
     patterns: [/healthify\s*me|healthifyme/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'FitPass',
+    patterns: [/\bfitpass\b/i],
     category: 'subscription',
     isSubscription: true,
   },
@@ -300,6 +368,12 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'loan',
     isSubscription: false,
   },
+  {
+    name: 'L&T Finance',
+    patterns: [/l&t\s*finance|ltfin/i],
+    category: 'loan',
+    isSubscription: false,
+  },
   
   // Business Services (NOT subscriptions for consumer app)
   {
@@ -320,8 +394,6 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
  * Find matching merchant pattern
  */
 export function findMerchantPattern(text: string): MerchantPattern | null {
-  const lowerText = text.toLowerCase();
-  
   for (const pattern of MERCHANT_PATTERNS) {
     for (const regex of pattern.patterns) {
       if (regex.test(text)) {
@@ -361,4 +433,65 @@ export function getStandardizedMerchantName(merchantName: string, smsBody?: stri
   const pattern = findMerchantPattern(merchantName) || (smsBody ? findMerchantPattern(smsBody) : null);
   
   return pattern ? pattern.name : merchantName;
+}
+
+// ─── Derived helpers (single source of truth for all other files) ────────────
+
+/**
+ * Build a special-services map for smsParser's extractMerchantName.
+ * Returns an array of { pattern, name } derived from MERCHANT_PATTERNS.
+ */
+let _specialServiceCache: Array<{ pattern: RegExp; name: string }> | null = null;
+
+export function getSpecialServiceMap(): Array<{ pattern: RegExp; name: string }> {
+  if (_specialServiceCache) return _specialServiceCache;
+
+  _specialServiceCache = [];
+  for (const mp of MERCHANT_PATTERNS) {
+    for (const regex of mp.patterns) {
+      _specialServiceCache.push({ pattern: regex, name: mp.name });
+    }
+  }
+  return _specialServiceCache;
+}
+
+/**
+ * Build the set of lowercase service names for smsClassifier's isKnownService.
+ * Includes component words (e.g. "amazon" from "Amazon Prime") for substring matching.
+ */
+let _knownNamesCache: string[] | null = null;
+
+export function getKnownServiceNames(): string[] {
+  if (_knownNamesCache) return _knownNamesCache;
+
+  const names = new Set<string>();
+  for (const mp of MERCHANT_PATTERNS) {
+    names.add(mp.name.toLowerCase());
+    // Add individual lowercase words ≥3 chars for substring matching
+    for (const word of mp.name.toLowerCase().split(/\s+/)) {
+      if (word.length >= 3) names.add(word);
+    }
+  }
+  _knownNamesCache = Array.from(names);
+  return _knownNamesCache;
+}
+
+/**
+ * Build regex list for isKnownServiceInBody (smsClassifier catch-all).
+ * Derived from subscription-type MERCHANT_PATTERNS only.
+ */
+let _bodyPatternsCache: RegExp[] | null = null;
+
+export function getKnownServiceBodyPatterns(): RegExp[] {
+  if (_bodyPatternsCache) return _bodyPatternsCache;
+
+  _bodyPatternsCache = [];
+  for (const mp of MERCHANT_PATTERNS) {
+    if (mp.isSubscription) {
+      for (const regex of mp.patterns) {
+        _bodyPatternsCache.push(regex);
+      }
+    }
+  }
+  return _bodyPatternsCache;
 }

@@ -8,7 +8,8 @@ import dayjs from 'dayjs';
 import { AppProvider, useAppContext } from './src/context/AppContext';
 import { useSmsSync } from './src/hooks/useSmsSync';
 import { usePermissions } from './src/hooks/usePermissions';
-import { UpgradeScreen, WelcomeScreen } from './src/screens';
+import { WelcomeScreen } from './src/screens';
+import RevenueCatUI from 'react-native-purchases-ui';
 import { BottomTabNavigator } from './src/navigation/BottomTabNavigator';
 import { PaymentAlarmScreen } from './src/components/PaymentAlarmScreen';
 import { OfflineScreen } from './src/components/OfflineScreen';
@@ -43,6 +44,7 @@ import {
 import { initializeRevenueCat, checkSubscriptionStatus, setProStatusChangeCallback } from './src/services/revenuecat';
 import { initializeAdMob, showInterstitialAd } from './src/services/admob';
 import { getSubscriptionTier, canAddSubscription } from './src/services/subscriptionService';
+import { checkAndPromptAppUpdate } from './src/services/appUpdateService';
 
 function AppContent() {
   const navigationRef = useRef<NavigationContainerRef<any>>(null);
@@ -69,7 +71,6 @@ function AppContent() {
   
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showWelcome, setShowWelcome] = useState(!hasCompletedWelcome());
   const [activeAlarms, setActiveAlarms] = useState<PaymentAlarm[]>([]);
   const [activeAlarmIndex, setActiveAlarmIndex] = useState(0);
@@ -160,7 +161,9 @@ function AppContent() {
           autopayTransactions,
           setSubscriptions,
           setAutopayTransactions,
-          () => setShowUpgradeModal(true)
+          () => {
+            RevenueCatUI.presentPaywall().catch(err => console.warn(err));
+          }
         );
       }
     });
@@ -261,6 +264,9 @@ function AppContent() {
         await performSync();
         checkUpcomingPayments();
       }
+
+      // Check for Google Play Store updates on app launch
+      checkAndPromptAppUpdate();
     } catch (error) {
       console.error('[App] Initialization error:', error);
       Alert.alert('Initialization Error', 'Failed to initialize app. Please restart.');
@@ -287,12 +293,7 @@ function AppContent() {
             `Detected ${newCount} subscription(s): ${newSubNames}`,
             [
               {
-                text: 'View',
-                onPress: () => {
-                  if (navigationRef.current?.isReady()) {
-                    navigationRef.current.navigate('Subscriptions' as never);
-                  }
-                },
+                text: 'OK',
               },
             ]
           );
@@ -344,6 +345,7 @@ function AppContent() {
         });
         
         checkUpcomingPayments();
+        checkAndPromptAppUpdate();
       }
       setAppState(nextAppState);
     });
@@ -357,6 +359,12 @@ function AppContent() {
     setRefreshing(true);
     
     if (hasSmsPermission) {
+      try {
+        const { forceFullResync } = require('./src/native/SmsModule');
+        await forceFullResync();
+      } catch (e) {
+        console.error('[App] Error during forceFullResync:', e);
+      }
       await performSync();
     } else {
       setRefreshing(false);
@@ -372,6 +380,12 @@ function AppContent() {
               if (granted) {
                 setHasSmsPermission(true);
                 setRefreshing(true);
+                try {
+                  const { forceFullResync } = require('./src/native/SmsModule');
+                  await forceFullResync();
+                } catch (e) {
+                  console.error('[App] Error during forceFullResync:', e);
+                }
                 await performSync();
                 setRefreshing(false);
               }
@@ -394,7 +408,7 @@ function AppContent() {
         `Free users can track up to ${tier.maxSubscriptions} subscriptions. Upgrade to Pro for unlimited subscriptions.`,
         [
           { text: 'Maybe Later', style: 'cancel' },
-          { text: 'Upgrade to Pro', onPress: () => setShowUpgradeModal(true) },
+          { text: 'Upgrade to Pro', onPress: () => { RevenueCatUI.presentPaywall().catch(err => console.warn(err)); } },
         ]
       );
       return false;
@@ -419,7 +433,7 @@ function AppContent() {
         'Autopay tracking is a Pro feature. Upgrade to Pro to track unlimited autopay transactions.',
         [
           { text: 'Maybe Later', style: 'cancel' },
-          { text: 'Upgrade to Pro', onPress: () => setShowUpgradeModal(true) },
+          { text: 'Upgrade to Pro', onPress: () => { RevenueCatUI.presentPaywall().catch(err => console.warn(err)); } },
         ]
       );
       return false;
@@ -488,7 +502,12 @@ function AppContent() {
     const sub = subscriptions.find(s => s.id === id);
     if (!sub) return;
     
-    const nextRenewal = calculateNextRenewal(Date.now(), sub.billingCycle);
+    // Use current nextRenewalDate if future (or Date.now() if past/missing)
+    // so paying early (e.g. July 27 for a July 29 due date) advances to August 29, not August 27
+    const baseDate = sub.nextRenewalDate && sub.nextRenewalDate > Date.now()
+      ? sub.nextRenewalDate
+      : Date.now();
+    const nextRenewal = calculateNextRenewal(baseDate, sub.billingCycle);
     updateSubscription(id, {
       lastPaymentDate: Date.now(),
       nextRenewalDate: nextRenewal,
@@ -589,35 +608,40 @@ function AppContent() {
           onRequestSmsPermission={requestSmsPermission}
           hasSmsPermission={hasSmsPermission}
           isPro={isPro}
-          onUpgradePress={() => setShowUpgradeModal(true)}
+          onUpgradePress={() => { RevenueCatUI.presentPaywall().catch(err => console.warn(err)); }}
           upcomingRenewals={upcomingRenewals}
           showRenewalAlert={showRenewalAlert}
           onDismissRenewalAlert={() => setShowRenewalAlert(false)}
         />
       </NavigationContainer>
 
-      <Modal visible={showUpgradeModal} animationType="slide" presentationStyle="pageSheet">
-        <UpgradeScreen onUpgradeSuccess={() => setShowUpgradeModal(false)} onClose={() => setShowUpgradeModal(false)} />
-      </Modal>
 
-      {activeAlarms.length > 0 && (
-        <PaymentAlarmScreen
-          payment={{
-            id: activeAlarms[activeAlarmIndex].id,
-            merchantName: activeAlarms[activeAlarmIndex].merchantName,
-            amount: activeAlarms[activeAlarmIndex].amount,
-            dueDate: activeAlarms[activeAlarmIndex].dueDate,
-            type: activeAlarms[activeAlarmIndex].type,
-            category: activeAlarms[activeAlarmIndex].category,
-          }}
-          urgency={activeAlarms[activeAlarmIndex].urgency}
-          onMarkAsPaid={handleMarkAsPaid}
-          onRemindTomorrow={handleRemindTomorrow}
-          onSnooze={handleSnooze}
-          currentIndex={activeAlarmIndex}
-          totalAlarms={activeAlarms.length}
-        />
-      )}
+
+      <Modal
+        visible={activeAlarms.length > 0}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => {}}
+      >
+        {activeAlarms.length > 0 && (
+          <PaymentAlarmScreen
+            payment={{
+              id: activeAlarms[activeAlarmIndex].id,
+              merchantName: activeAlarms[activeAlarmIndex].merchantName,
+              amount: activeAlarms[activeAlarmIndex].amount,
+              dueDate: activeAlarms[activeAlarmIndex].dueDate,
+              type: activeAlarms[activeAlarmIndex].type,
+              category: activeAlarms[activeAlarmIndex].category,
+            }}
+            urgency={activeAlarms[activeAlarmIndex].urgency}
+            onMarkAsPaid={handleMarkAsPaid}
+            onRemindTomorrow={handleRemindTomorrow}
+            onSnooze={handleSnooze}
+            currentIndex={activeAlarmIndex}
+            totalAlarms={activeAlarms.length}
+          />
+        )}
+      </Modal>
     </SafeAreaProvider>
   );
 }

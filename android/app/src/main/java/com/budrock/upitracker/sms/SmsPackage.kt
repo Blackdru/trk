@@ -10,12 +10,11 @@ import com.facebook.react.uimanager.ViewManager
  * Registers the SmsModule to expose native SMS functionality to JS.
  */
 class SmsPackage : ReactPackage {
-    
+
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-        val smsModule = SmsModule(reactContext)
-        // Register module with receiver for real-time SMS events
-        SmsReceiver.setSmsModule(smsModule)
-        return listOf(smsModule)
+        // SmsModule now registers its own LocalBroadcastReceiver in its init block,
+        // so we no longer need the brittle setSmsModule() call on SmsReceiver.
+        return listOf(SmsModule(reactContext))
     }
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {

@@ -22,7 +22,7 @@ export const OfflineScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
   },
   content: {
     flex: 1,
@@ -37,19 +37,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1A1D24',
     marginBottom: 12,
     textAlign: 'center',
   },
   message: {
     fontSize: 16,
-    color: '#666',
+    color: '#5A6072',
     textAlign: 'center',
     marginBottom: 8,
   },
   submessage: {
     fontSize: 14,
-    color: '#999',
+    color: '#9098A8',
     textAlign: 'center',
   },
 });

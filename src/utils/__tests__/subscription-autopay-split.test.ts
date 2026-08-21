@@ -98,8 +98,8 @@ describe('Subscription vs Autopay Split Logic', () => {
       console.log(`${txn.merchantName} - ₹${txn.amount} (${txn.category})`);
     });
 
-    // Should include: Google Play, Spotify, AWS India, BESCOM, Jio Fiber, L&T Finance
-    expect(autopayTxns.length).toBe(6);
+    // Should include: Google Play, Spotify, AWS India, JioHotstar, BESCOM, Jio Fiber, L&T Finance
+    expect(autopayTxns.length).toBe(7);
   });
 
   test('should filter subscription services from autopay tracker', () => {
@@ -110,14 +110,14 @@ describe('Subscription vs Autopay Split Logic', () => {
     const autopayTxns = extractAutopayTransactions(parsed);
     const nonSubscriptionAutopay = filterNonSubscriptionAutopay(autopayTxns);
 
-    console.log('\n=== AUTOPAY TRACKER (Non-Subscription, Should be 3) ===');
+    console.log('\n=== AUTOPAY TRACKER (Non-Subscription, Should be 4) ===');
     nonSubscriptionAutopay.forEach(txn => {
       console.log(`${txn.merchantName} - ₹${txn.amount} (${txn.category})`);
     });
 
-    // Should include: AWS India, BESCOM, L&T Finance
+    // Should include: AWS India, BESCOM, Jio Fiber, L&T Finance
     // Should NOT include: Google Play, Spotify, JioHotstar
-    expect(nonSubscriptionAutopay.length).toBe(3);
+    expect(nonSubscriptionAutopay.length).toBe(4);
     
     const merchantNames = nonSubscriptionAutopay.map(t => t.merchantName.toLowerCase());
     expect(merchantNames.some(n => n.includes('aws'))).toBe(true);

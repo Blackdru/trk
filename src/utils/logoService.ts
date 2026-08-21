@@ -204,9 +204,9 @@ export function getFallbackLogoUrls(merchantName: string): string[] {
  */
 export function getPlaceholderColor(merchantName: string): string {
   const colors = [
-    '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
-    '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739', '#52B788',
-    '#E76F51', '#2A9D8F', '#E9C46A', '#F4A261', '#264653',
+    '#6366D6', '#0E9AA7', '#10A37A', '#E08A1E', '#E5484D',
+    '#4F7FE8', '#E5648F', '#504DB8', '#0C8A66', '#BE7215',
+    '#C9363B', '#74C4CE', '#66C79E', '#EDB455', '#394150',
   ];
   
   // Generate consistent color based on name

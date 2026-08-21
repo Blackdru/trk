@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#F6F7F9',
     paddingVertical: 10,
     minHeight: 60,
     borderRadius: 8,
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
   placeholder: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E4E4E7',
+    backgroundColor: '#E2E5EB',
     paddingVertical: 16,
     marginHorizontal: 20,
     marginVertical: 8,
@@ -112,11 +112,11 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: 12,
-    color: '#A1A1AA',
+    color: '#9BA1AD',
   },
   errorText: {
     fontSize: 11,
-    color: '#EF4444',
+    color: '#E5484D',
     marginTop: 4,
   },
 });

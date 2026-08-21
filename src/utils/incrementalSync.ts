@@ -47,10 +47,19 @@ export function addProcessedSmsHash(hash: string): void {
 
 /**
  * Generate a hash for SMS message to detect duplicates
+ * Issue #12: Use a proper hash of the full body instead of truncated substring
  */
 export function generateSmsHash(sms: RawSms): string {
-  // Use body + date + address as unique identifier
-  return `${sms.date}-${sms.address}-${sms.body.substring(0, 50)}`;
+  // Simple but effective hash using full body content
+  const content = `${sms.date}-${sms.address}-${sms.body}`;
+  let hash = 0;
+  for (let i = 0; i < content.length; i++) {
+    const char = content.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  // Use base36 for compact string + include length as collision guard
+  return `${Math.abs(hash).toString(36)}-${sms.body.length}`;
 }
 
 /**

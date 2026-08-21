@@ -260,20 +260,15 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
             <Text style={styles.filterLabel}>Sort by</Text>
             <View style={styles.filterChips}>
               {[
-                { value: 'date', label: 'Date', icon: 'calendar' },
-                { value: 'amount', label: 'Amount', icon: 'dollar-sign' },
-                { value: 'merchant', label: 'Merchant', icon: 'type' },
+                { value: 'date', label: 'Date' },
+                { value: 'amount', label: 'Amount' },
+                { value: 'merchant', label: 'Merchant' },
               ].map((option) => (
                 <TouchableOpacity
                   key={option.value}
                   style={[styles.filterChip, sortBy === option.value && styles.filterChipActive]}
                   onPress={() => setSortBy(option.value as SortOption)}
                 >
-                  <Icon
-                    name={option.icon}
-                    size={12}
-                    color={sortBy === option.value ? colors.success[700] : colors.text.secondary}
-                  />
                   <Text style={[styles.filterChipText, sortBy === option.value && styles.filterChipTextActive]}>
                     {option.label}
                   </Text>
@@ -361,7 +356,6 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
         {categoryStats.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Icon name="pie-chart" size={18} color={colors.success[600]} />
               <Text style={styles.sectionHead}>Categories</Text>
             </View>
             <View style={styles.catGrid}>
@@ -400,7 +394,6 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
         {/* Transactions List */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Icon name="list" size={18} color={colors.success[600]} />
             <Text style={styles.sectionHead}>Transactions</Text>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
@@ -495,14 +488,12 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
                             </View>
                             {txn.category && (
                               <View style={[styles.txnCatBadge, { backgroundColor: getCategoryColor(txn.category) + '20' }]}>
-                                <Icon name={getCategoryIcon(txn.category)} size={10} color={getCategoryColor(txn.category)} />
                                 <Text style={[styles.txnCat, { color: getCategoryColor(txn.category) }]}>{txn.category}</Text>
                               </View>
                             )}
                           </View>
                           {txn.nextPaymentDate ? (
                             <View style={styles.nextDueBadge}>
-                              <Icon name="calendar" size={10} color={colors.text.tertiary} />
                               <Text style={styles.nextDueText}>
                                 Next: {dayjs(txn.nextPaymentDate).format('MMM D')}
                               </Text>
@@ -571,8 +562,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   header: {
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
     paddingHorizontal: spacing.lg,
     ...shadows.md,
   },
@@ -585,7 +576,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    ...typography.headline.medium,
+    ...typography.headline.small,
     color: colors.text.inverse,
     marginBottom: spacing.xs,
   },

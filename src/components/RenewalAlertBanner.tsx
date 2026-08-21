@@ -22,11 +22,10 @@ export function RenewalAlertBanner({ today, tomorrow, twoDays, onDismiss }: Prop
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Icon name="bell" size={20} color="#EF4444" />
           <Text style={styles.headerTitle}>Upcoming Renewals</Text>
         </View>
         <TouchableOpacity onPress={onDismiss} style={styles.dismissButton}>
-          <Icon name="x" size={18} color="#A1A1AA" />
+          <Icon name="x" size={18} color="#9BA1AD" />
         </TouchableOpacity>
       </View>
 
@@ -38,7 +37,7 @@ export function RenewalAlertBanner({ today, tomorrow, twoDays, onDismiss }: Prop
         {today.length > 0 && (
           <View style={[styles.alertCard, styles.alertToday]}>
             <View style={styles.alertHeader}>
-              <Icon name="alert-circle" size={16} color="#EF4444" />
+              <View style={[styles.dotIndicator, { backgroundColor: '#E5484D' }]} />
               <Text style={styles.alertTitle}>Renewing Today</Text>
             </View>
             {today.map((sub, index) => (
@@ -55,7 +54,7 @@ export function RenewalAlertBanner({ today, tomorrow, twoDays, onDismiss }: Prop
         {tomorrow.length > 0 && (
           <View style={[styles.alertCard, styles.alertTomorrow]}>
             <View style={styles.alertHeader}>
-              <Icon name="clock" size={16} color="#F59E0B" />
+              <View style={[styles.dotIndicator, { backgroundColor: '#E08A1E' }]} />
               <Text style={styles.alertTitle}>Tomorrow</Text>
             </View>
             {tomorrow.map((sub, index) => (
@@ -72,7 +71,7 @@ export function RenewalAlertBanner({ today, tomorrow, twoDays, onDismiss }: Prop
         {twoDays.length > 0 && (
           <View style={[styles.alertCard, styles.alertTwoDays]}>
             <View style={styles.alertHeader}>
-              <Icon name="calendar" size={16} color="#0D9488" />
+              <View style={[styles.dotIndicator, { backgroundColor: '#0C8A66' }]} />
               <Text style={styles.alertTitle}>In 2 Days</Text>
             </View>
             {twoDays.map((sub, index) => (
@@ -145,6 +144,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     marginBottom: spacing.xs,
+  },
+  dotIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   alertTitle: {
     ...typography.label.medium,

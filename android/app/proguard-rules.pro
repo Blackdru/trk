@@ -54,3 +54,10 @@
 # Preserve line numbers for debugging
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# Custom modules (SMS and Alarm) to prevent crashes on Release/Play Store builds
+-keep class com.budrock.upitracker.sms.** { *; }
+-keep class com.budrock.upitracker.alarm.** { *; }
+-dontwarn com.budrock.upitracker.sms.**
+-dontwarn com.budrock.upitracker.alarm.**
+

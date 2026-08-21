@@ -239,7 +239,6 @@ export function DashboardScreen({
             <View style={styles.section}>
               <Card>
                 <View style={styles.totalSpendingHeader}>
-                  <Icon name="trending-up" size={24} color={colors.primary[600]} />
                   <Text style={styles.totalSpendingTitle}>Total Monthly Spending</Text>
                 </View>
                 <Text style={styles.totalSpendingAmount}>₹{Math.round(totalSpending)}</Text>
@@ -270,52 +269,34 @@ export function DashboardScreen({
             <View style={styles.section}>
               <View style={styles.quickStatsGrid}>
                 <Card style={styles.quickStatCard}>
-                  <View style={[styles.quickStatIcon, { backgroundColor: colors.primary[100] }]}>
-                    <Icon name="layers" size={20} color={colors.primary[600]} />
-                  </View>
-                  <Text style={styles.quickStatValue}>{subscriptions.length}</Text>
+                  <Text style={[styles.quickStatValue, { color: colors.primary[600] }]}>{subscriptions.length}</Text>
                   <Text style={styles.quickStatLabel}>Subscriptions</Text>
                 </Card>
                 {tier.hasAutopayTracking ? (
                   <Card style={styles.quickStatCard}>
-                    <View style={[styles.quickStatIcon, { backgroundColor: colors.success[100] }]}>
-                      <Icon name="refresh-cw" size={20} color={colors.success[600]} />
-                    </View>
-                    <Text style={styles.quickStatValue}>{autopayStats.total}</Text>
+                    <Text style={[styles.quickStatValue, { color: colors.success[600] }]}>{autopayStats.total}</Text>
                     <Text style={styles.quickStatLabel}>Autopay</Text>
                   </Card>
                 ) : (
                   <Card style={styles.quickStatCard}>
-                    <View style={[styles.quickStatIcon, { backgroundColor: colors.warning[100] }]}>
-                      <Icon name="clock" size={20} color={colors.warning[600]} />
-                    </View>
-                    <Text style={styles.quickStatValue}>{upcoming.length}</Text>
+                    <Text style={[styles.quickStatValue, { color: colors.warning[600] }]}>{upcoming.length}</Text>
                     <Text style={styles.quickStatLabel}>Due Soon</Text>
                   </Card>
                 )}
               </View>
               <View style={styles.quickStatsGrid}>
                 <Card style={styles.quickStatCard}>
-                  <View style={[styles.quickStatIcon, { backgroundColor: colors.warning[100] }]}>
-                    <Icon name="clock" size={20} color={colors.warning[600]} />
-                  </View>
-                  <Text style={styles.quickStatValue}>{upcoming.length}</Text>
+                  <Text style={[styles.quickStatValue, { color: colors.warning[600] }]}>{upcoming.length}</Text>
                   <Text style={styles.quickStatLabel}>Due Soon</Text>
                 </Card>
                 {tier.hasAutopayTracking ? (
                   <Card style={styles.quickStatCard}>
-                    <View style={[styles.quickStatIcon, { backgroundColor: colors.accent[100] }]}>
-                      <Icon name="activity" size={20} color={colors.accent[600]} />
-                    </View>
-                    <Text style={styles.quickStatValue}>{autopayLast30Days.length}</Text>
+                    <Text style={[styles.quickStatValue, { color: colors.accent[600] }]}>{autopayLast30Days.length}</Text>
                     <Text style={styles.quickStatLabel}>Last 30d</Text>
                   </Card>
                 ) : (
                   <Card style={styles.quickStatCard}>
-                    <View style={[styles.quickStatIcon, { backgroundColor: colors.success[100] }]}>
-                      <Icon name="dollar-sign" size={20} color={colors.success[600]} />
-                    </View>
-                    <Text style={styles.quickStatValue}>₹{Math.round(totalMonthly)}</Text>
+                    <Text style={[styles.quickStatValue, { color: colors.success[600] }]}>₹{Math.round(totalMonthly)}</Text>
                     <Text style={styles.quickStatLabel}>Monthly</Text>
                   </Card>
                 )}
@@ -326,7 +307,6 @@ export function DashboardScreen({
             {topSubscriptions.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Icon name="star" size={18} color={colors.primary[600]} />
                   <Text style={styles.sectionTitle}>Top Subscriptions</Text>
                 </View>
                 <Card padding="sm">
@@ -351,7 +331,6 @@ export function DashboardScreen({
             {tier.hasAutopayTracking && recentAutopay.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Icon name="refresh-cw" size={18} color={colors.success[600]} />
                   <Text style={styles.sectionTitle}>Recent Autopay</Text>
                 </View>
                 <Card padding="sm">
@@ -402,7 +381,6 @@ export function DashboardScreen({
             {subscriptionsByCategory.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Icon name="grid" size={18} color={colors.primary[600]} />
                   <Text style={styles.sectionTitle}>By Category</Text>
                 </View>
                 <Card>
@@ -431,7 +409,6 @@ export function DashboardScreen({
             {subscriptionsByBillingCycle.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Icon name="calendar" size={18} color={colors.primary[600]} />
                   <Text style={styles.sectionTitle}>By Billing Cycle</Text>
                 </View>
                 <Card>
@@ -460,7 +437,6 @@ export function DashboardScreen({
             {upcoming.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Icon name="clock" size={18} color={colors.warning[600]} />
                   <Text style={styles.sectionTitle}>Upcoming Renewals</Text>
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>Next 7 days</Text>
@@ -538,16 +514,13 @@ export function DashboardScreen({
             {autopayByCategory.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Icon name="pie-chart" size={18} color={colors.success[600]} />
                   <Text style={styles.sectionTitle}>By Category</Text>
                 </View>
                 <Card>
                   {autopayByCategory.map((item, index) => (
                     <View key={item.category} style={[styles.analyticsRow, index === autopayByCategory.length - 1 && styles.analyticsRowLast]}>
                       <View style={styles.analyticsLeft}>
-                        <View style={[styles.categoryIconWrapper, { backgroundColor: getCategoryColor(item.category.toLowerCase()) + '20' }]}>
-                          <Icon name={getCategoryIcon(item.category.toLowerCase())} size={16} color={getCategoryColor(item.category.toLowerCase())} />
-                        </View>
+                        <View style={[styles.analyticsDot, { backgroundColor: getCategoryColor(item.category.toLowerCase()) }]} />
                         <Text style={styles.analyticsLabel}>{item.category}</Text>
                       </View>
                       <View style={styles.analyticsRight}>
@@ -568,7 +541,6 @@ export function DashboardScreen({
             {recentAutopay.length > 0 && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
-                  <Icon name="list" size={18} color={colors.success[600]} />
                   <Text style={styles.sectionTitle}>Recent Transactions</Text>
                 </View>
                 <Card padding="sm">
@@ -643,8 +615,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   header: {
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
     ...shadows.lg,
   },
@@ -654,17 +626,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerGreeting: {
-    ...typography.headline.medium,
+    ...typography.headline.small,
     color: colors.text.inverse,
     marginBottom: spacing.xs,
   },
   headerSubtitle: {
-    ...typography.body.medium,
+    ...typography.body.small,
     color: 'rgba(255, 255, 255, 0.9)',
   },
   refreshButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: borderRadius.full,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
@@ -673,13 +645,13 @@ const styles = StyleSheet.create({
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: colors.background,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
     gap: spacing.xs,
   },
   tab: {
     flex: 1,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
     alignItems: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
@@ -688,11 +660,11 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.primary[500],
   },
   tabText: {
-    ...typography.body.medium,
+    ...typography.body.small,
     color: colors.text.secondary,
   },
   tabTextActive: {
-    ...typography.body.medium,
+    ...typography.body.small,
     fontWeight: '600',
     color: colors.primary[600],
   },
@@ -728,14 +700,15 @@ const styles = StyleSheet.create({
     color: colors.primary[700],
   },
   totalSpendingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
     marginBottom: spacing.md,
   },
   totalSpendingTitle: {
     ...typography.title.medium,
-    color: colors.text.primary,
+    color: colors.text.secondary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   totalSpendingAmount: {
     ...typography.display.small,

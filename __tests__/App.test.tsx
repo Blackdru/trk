@@ -15,6 +15,34 @@ jest.mock('react-native-mmkv', () => ({
   })),
 }));
 
+jest.mock('react-native-device-info', () => ({
+  getVersion: jest.fn(() => '1.0.0'),
+  getBuildNumber: jest.fn(() => '1'),
+}));
+
+jest.mock('sp-react-native-in-app-updates', () => {
+  return jest.fn().mockImplementation(() => ({
+    checkNeedsUpdate: jest.fn(() => Promise.resolve({ shouldUpdate: false })),
+    startUpdate: jest.fn(),
+  }));
+});
+
+jest.mock('@react-native-community/netinfo', () => ({
+  addEventListener: jest.fn(() => jest.fn()),
+  fetch: jest.fn(() => Promise.resolve({ isConnected: true })),
+}));
+
+jest.mock('@notifee/react-native', () => ({
+  createChannel: jest.fn(() => Promise.resolve('default')),
+  displayNotification: jest.fn(() => Promise.resolve()),
+  createTriggerNotification: jest.fn(() => Promise.resolve()),
+  getTriggerNotifications: jest.fn(() => Promise.resolve([])),
+  cancelNotification: jest.fn(() => Promise.resolve()),
+  AndroidImportance: { HIGH: 4, DEFAULT: 3 },
+  TriggerType: { TIMESTAMP: 0 },
+  RepeatFrequency: { DAILY: 0 },
+}));
+
 jest.mock('@react-navigation/native', () => {
   const actualNav = jest.requireActual('@react-navigation/native');
   return {
@@ -62,6 +90,10 @@ jest.mock('../src/services/alarmService', () => ({
   markPaymentAsPaid: jest.fn(),
   snoozeAlarm: jest.fn(),
   hasBeenSnoozed: jest.fn(() => false),
+}));
+
+jest.mock('../src/services/appUpdateService', () => ({
+  checkForAppUpdate: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock('../src/utils/reliableNotifications', () => ({

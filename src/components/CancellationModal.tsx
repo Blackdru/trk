@@ -181,7 +181,7 @@ export function CancellationModal({
               
               {isUrgent && transaction.nextPaymentDate && (
                 <View style={styles.urgentBanner}>
-                  <Icon name="alert-triangle" size={20} color="#FF9800" />
+                  <Icon name="alert-triangle" size={20} color="#E08A1E" />
                   <View style={styles.urgentBannerContent}>
                     <Text style={styles.urgentText}>
                       ⚠️ Payment due {formatDueDate(transaction.nextPaymentDate)}
@@ -412,10 +412,10 @@ const styles = StyleSheet.create({
   urgentBanner: {
     marginTop: 16,
     padding: 16,
-    backgroundColor: '#FFF3CD',
+    backgroundColor: '#FAE8C9',
     borderRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#FF9800',
+    borderLeftColor: '#E08A1E',
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
@@ -426,12 +426,12 @@ const styles = StyleSheet.create({
   urgentText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#856404',
+    color: '#7C4A12',
     marginBottom: 4,
   },
   urgentSubtext: {
     fontSize: 13,
-    color: '#856404',
+    color: '#7C4A12',
     lineHeight: 18,
   },
   loadingContainer: {
@@ -446,10 +446,10 @@ const styles = StyleSheet.create({
   appInfo: {
     marginBottom: 20,
     padding: 18,
-    backgroundColor: '#F5F3FF',
+    backgroundColor: '#EFF1FE',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#EDE9FE',
+    borderColor: '#E1E4FB',
   },
   appInfoTitle: {
     fontSize: 15,
@@ -506,12 +506,12 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   tipsContainer: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#EAF7F8',
     padding: 18,
     borderRadius: 14,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#90CAF9',
+    borderColor: '#A6DBE1',
   },
   tipsTitle: {
     fontSize: 15,
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
   },
   successButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#10A37A',
     flex: 1,
     marginRight: 10,
   },

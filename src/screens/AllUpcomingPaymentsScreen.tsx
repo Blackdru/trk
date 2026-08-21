@@ -96,13 +96,13 @@ export function AllUpcomingPaymentsScreen({
     });
 
     if (todayItems.length > 0) {
-      groups.push({ label: 'Today', labelColor: '#DC2626', bgColor: '#FEE2E2', iconName: 'alert-circle', items: todayItems });
+      groups.push({ label: 'Today', labelColor: '#C9363B', bgColor: '#FADADA', iconName: 'alert-circle', items: todayItems });
     }
     if (tomorrowItems.length > 0) {
-      groups.push({ label: 'Tomorrow', labelColor: '#D97706', bgColor: '#FEF3C7', iconName: 'clock', items: tomorrowItems });
+      groups.push({ label: 'Tomorrow', labelColor: '#BE7215', bgColor: '#FAE8C9', iconName: 'clock', items: tomorrowItems });
     }
     if (thisWeekItems.length > 0) {
-      groups.push({ label: 'This Week', labelColor: '#0D9488', bgColor: '#CCFBF1', iconName: 'calendar', items: thisWeekItems });
+      groups.push({ label: 'This Week', labelColor: '#0C8A66', bgColor: '#CCEFDF', iconName: 'calendar', items: thisWeekItems });
     }
     if (laterItems.length > 0) {
       groups.push({ label: 'Later This Month', labelColor: colors.primary[700], bgColor: colors.primary[100], iconName: 'calendar', items: laterItems });
@@ -149,11 +149,11 @@ export function AllUpcomingPaymentsScreen({
   const getTypeColor = (item: UpcomingItem) => {
     if (item.type === 'subscription') return colors.primary[500];
     switch (item.category) {
-      case 'utility': return '#F59E0B';
-      case 'insurance': return '#8B5CF6';
-      case 'loan': return '#EF4444';
-      case 'telecom': return '#3B82F6';
-      case 'investment': return '#10B981';
+      case 'utility': return '#E08A1E';
+      case 'insurance': return '#6366D6';
+      case 'loan': return '#E5484D';
+      case 'telecom': return '#4F7FE8';
+      case 'investment': return '#10A37A';
       default: return colors.gray[500];
     }
   };
@@ -218,6 +218,7 @@ export function AllUpcomingPaymentsScreen({
               <View style={styles.groupCard}>
                 {group.items.map((item, index) => {
                   const typeColor = getTypeColor(item);
+                  const isPaid = paidIds.has(item.id);
                   return (
                     <View
                       key={item.id}
@@ -238,14 +239,21 @@ export function AllUpcomingPaymentsScreen({
                       </View>
                       <View style={styles.itemRight}>
                         <Text style={styles.itemAmount}>₹{item.amount}</Text>
-                        <TouchableOpacity
-                          style={styles.markPaidBtn}
-                          onPress={() => handleMarkPaid(item)}
-                          activeOpacity={0.7}
-                        >
-                          <Icon name="check" size={13} color={colors.success[700]} />
-                          <Text style={styles.markPaidText}>Paid</Text>
-                        </TouchableOpacity>
+                        {isPaid ? (
+                          <View style={styles.paidBadge}>
+                            <Icon name="check" size={13} color={colors.success[700]} />
+                            <Text style={styles.paidBadgeText}>Paid</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.markPaidBtn}
+                            onPress={() => handleMarkPaid(item)}
+                            activeOpacity={0.7}
+                          >
+                            <Icon name="check-circle" size={12} color={colors.primary[600]} />
+                            <Text style={styles.markPaidText}>Mark as Paid</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     </View>
                   );
@@ -395,6 +403,23 @@ const styles = StyleSheet.create({
   markPaidBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    backgroundColor: colors.primary[50],
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary[200],
+  },
+  markPaidText: {
+    ...typography.label.small,
+    color: colors.primary[700],
+    fontWeight: '600',
+    fontSize: 11,
+  },
+  paidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 3,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
@@ -403,7 +428,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.success[300],
   },
-  markPaidText: {
+  paidBadgeText: {
     ...typography.label.small,
     color: colors.success[700],
     fontWeight: '600',

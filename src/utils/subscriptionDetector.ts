@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import type { ParsedTransaction, Subscription, BillingCycle } from '../types';
-import { isKnownSubscriptionService, getStandardizedMerchantName } from './merchantPatterns';
+import { isKnownSubscriptionService, getStandardizedMerchantName, findMerchantPattern } from './merchantPatterns';
 
 /**
  * Group transactions into subscriptions based on merchant, amount, and interval.
@@ -23,13 +23,19 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
     // For single transaction, check if it's likely a subscription based on keywords or payment type
     if (txns.length === 1) {
       const txn = sortedTxns[0];
+      const merchantLower = txn.merchantName.toLowerCase().trim();
       
       // Check if it's a known subscription service
       const isKnownService = isSubscriptionKeyword(txn);
       
-      // RELAXED RULE: Create subscription for ANY Autopay/Mandate transaction
-      // This allows detection of new services not in our hardcoded list
-      const isLikelySubscription = (txn.paymentType === 'Autopay' || txn.paymentType === 'Mandate');
+      // Explicit non-subscriptions (AWS, LIC, Utilities, Loans, plain "Google", "Unknown Merchant") should NOT be app subscriptions
+      const isPlainGoogle = merchantLower === 'google';
+      const isUnknownMerchant = merchantLower === 'unknown merchant';
+      const pattern = findMerchantPattern(txn.merchantName) || (txn.rawSms ? findMerchantPattern(txn.rawSms) : null);
+      const isExplicitNonSubscription = (pattern && !pattern.isSubscription) || isPlainGoogle || isUnknownMerchant;
+      
+      // RELAXED RULE: Create subscription for Autopay/Mandate transaction, UNLESS explicitly a non-subscription service
+      const isLikelySubscription = !isExplicitNonSubscription && (isKnownService || txn.paymentType === 'Autopay' || txn.paymentType === 'Mandate');
       
       if (isLikelySubscription) {
         const cycle: BillingCycle = 'monthly'; // Default assumption for subscriptions
@@ -61,10 +67,16 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
     // If we have multiple transactions but can't detect cycle, check if it's autopay/mandate
     if (!cycle) {
       const firstTxn = sortedTxns[0];
+      const merchantLower = firstTxn.merchantName.toLowerCase().trim();
       const isKnownService = isSubscriptionKeyword(firstTxn);
       
-      // RELAXED RULE: Treat as subscription if it has autopay/mandate OR is a known service
-      if (isKnownService || firstTxn.paymentType === 'Autopay' || firstTxn.paymentType === 'Mandate') {
+      const isPlainGoogle = merchantLower === 'google';
+      const isUnknownMerchant = merchantLower === 'unknown merchant';
+      const pattern = findMerchantPattern(firstTxn.merchantName) || (firstTxn.rawSms ? findMerchantPattern(firstTxn.rawSms) : null);
+      const isExplicitNonSubscription = (pattern && !pattern.isSubscription) || isPlainGoogle || isUnknownMerchant;
+      
+      // RELAXED RULE: Treat as subscription if it has autopay/mandate OR is a known service, UNLESS explicitly a non-subscription service
+      if (!isExplicitNonSubscription && (isKnownService || firstTxn.paymentType === 'Autopay' || firstTxn.paymentType === 'Mandate')) {
         // Assume monthly for services even if pattern is unclear
         const lastTxn = sortedTxns[sortedTxns.length - 1];
         const nextRenewal = calculateNextRenewal(lastTxn.date, 'monthly');

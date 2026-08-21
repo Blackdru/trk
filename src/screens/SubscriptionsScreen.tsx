@@ -9,7 +9,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
 import Icon from 'react-native-vector-icons/Feather';
+
+dayjs.extend(relativeTime);
 import LinearGradient from 'react-native-linear-gradient';
 import type { Subscription, AutopayTransaction } from '../types';
 import { SubscriptionLogo } from '../components/SubscriptionLogo';
@@ -186,14 +189,15 @@ export function SubscriptionsScreen({ subscriptions, onDelete }: Props) {
           <View style={styles.gridPriceRow}>
             <Text style={styles.gridPrice}>₹{item.amount}</Text>
             <View style={[styles.gridCycleBadge, { backgroundColor: getCycleColor(item.billingCycle) + '20' }]}>
-              <Icon name={getCycleIcon(item.billingCycle)} size={10} color={getCycleColor(item.billingCycle)} />
+              <Text style={[styles.gridCycleText, { color: getCycleColor(item.billingCycle) }]}>
+                {item.billingCycle}
+              </Text>
             </View>
           </View>
           {item.billingCycle !== 'monthly' && (
             <Text style={styles.gridMonthlyEquiv}>₹{item.monthlyEquivalent.toFixed(0)}/mo</Text>
           )}
           <View style={styles.gridDateRow}>
-            <Icon name="calendar" size={10} color={colors.text.tertiary} />
             <Text style={styles.gridDate}>{dayjs(item.nextRenewalDate).format('MMM D')}</Text>
           </View>
         </Card>
@@ -233,7 +237,6 @@ export function SubscriptionsScreen({ subscriptions, onDelete }: Props) {
               <Text style={styles.listMerchantName} numberOfLines={1}>{item.merchantName}</Text>
               <View style={styles.listMetaRow}>
                 <View style={[styles.listCycleBadge, { backgroundColor: getCycleColor(item.billingCycle) + '20' }]}>
-                  <Icon name={getCycleIcon(item.billingCycle)} size={11} color={getCycleColor(item.billingCycle)} />
                   <Text style={[styles.listCycleText, { color: getCycleColor(item.billingCycle) }]}>
                     {item.billingCycle}
                   </Text>
@@ -250,7 +253,6 @@ export function SubscriptionsScreen({ subscriptions, onDelete }: Props) {
                 </View>
               </View>
               <View style={styles.listDateRow}>
-                <Icon name="calendar" size={12} color={colors.text.tertiary} />
                 <Text style={styles.listDate}>Next: {dayjs(item.nextRenewalDate).format('MMM D, YYYY')}</Text>
               </View>
             </View>
@@ -344,21 +346,16 @@ export function SubscriptionsScreen({ subscriptions, onDelete }: Props) {
             <Text style={styles.filterLabel}>Sort by</Text>
             <View style={styles.filterChips}>
               {[
-                { value: 'name', label: 'Name', icon: 'type' },
-                { value: 'amount', label: 'Amount', icon: 'dollar-sign' },
-                { value: 'date', label: 'Date', icon: 'calendar' },
-                { value: 'cycle', label: 'Cycle', icon: 'repeat' },
+                { value: 'name', label: 'Name' },
+                { value: 'amount', label: 'Amount' },
+                { value: 'date', label: 'Date' },
+                { value: 'cycle', label: 'Cycle' },
               ].map((option) => (
                 <TouchableOpacity
                   key={option.value}
                   style={[styles.filterChip, sortBy === option.value && styles.filterChipActive]}
                   onPress={() => setSortBy(option.value as SortOption)}
                 >
-                  <Icon
-                    name={option.icon}
-                    size={12}
-                    color={sortBy === option.value ? colors.primary[700] : colors.text.secondary}
-                  />
                   <Text style={[styles.filterChipText, sortBy === option.value && styles.filterChipTextActive]}>
                     {option.label}
                   </Text>
@@ -465,8 +462,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   header: {
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
     paddingHorizontal: spacing.lg,
     ...shadows.md,
   },
@@ -479,7 +476,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    ...typography.headline.medium,
+    ...typography.headline.small,
     color: colors.text.inverse,
     marginBottom: spacing.xs,
   },
@@ -715,11 +712,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   gridCycleBadge: {
-    width: 24,
-    height: 24,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
     borderRadius: borderRadius.sm,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  gridCycleText: {
+    ...typography.label.small,
+    fontSize: 9,
+    fontWeight: '600',
+    textTransform: 'capitalize',
   },
   gridMonthlyEquiv: {
     ...typography.label.small,

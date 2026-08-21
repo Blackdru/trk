@@ -1,4 +1,5 @@
 import type { ParsedTransaction, AutopayTransaction, AutopayStatus } from '../types';
+import { findMerchantPattern } from './merchantPatterns';
 
 /**
  * Extract all autopay/mandate transactions from parsed SMS
@@ -47,26 +48,51 @@ function categorizeAutopay(transaction: ParsedTransaction): string {
   const merchantLower = transaction.merchantName.toLowerCase();
   const bodyLower = transaction.rawSms?.toLowerCase() || '';
 
-  // Special case: Google Play is a subscription, but plain "Google" is not
+  // Check defined merchant patterns first (single source of truth for categories like telecom, utility, loan, subscription)
+  const pattern = findMerchantPattern(transaction.merchantName) || (transaction.rawSms ? findMerchantPattern(transaction.rawSms) : null);
+  if (pattern) {
+    // Exception: plain Google in mandate/autopay context
+    if (merchantLower === 'google' || (merchantLower.includes('google') && !merchantLower.includes('play'))) {
+      if (transaction.paymentType === 'Autopay' || transaction.paymentType === 'Mandate') {
+        return 'subscription';
+      }
+    }
+    return pattern.category;
+  }
+
+  // Special case: Google Play is a subscription, but plain "Google" is not (unless in mandate context)
   if (merchantLower.includes('google play') || bodyLower.includes('google play')) {
     return 'subscription';
   }
   
-  // If it's just "Google" (not Google Play), treat as other/business service
+  // If it's just "Google" (not Google Play), treat as subscription if it's a mandate/autopay
+  // because Google mandates are typically for Google Play/One subscriptions
   if (merchantLower === 'google' || (merchantLower.includes('google') && !merchantLower.includes('play'))) {
+    if (transaction.paymentType === 'Autopay' || transaction.paymentType === 'Mandate') {
+      return 'subscription';
+    }
     return 'other';
   }
 
-  // Loans (EMI) - check FIRST to catch True Credits, Moneyview, etc.
-  const loanKeywords = [
-    'loan', 'emi', 'home loan', 'car loan', 'personal loan',
-    'credit card', 'true credits', 'true balance', 'moneyview',
-    'money view', 'bajaj finserv', 'tata capital', 'fullerton',
-    'lending', 'finance', 'fintech'
+  // Loans (EMI) - check FIRST to catch True Credits, Moneyview, L&T Finance, etc.
+  // IMPORTANT: Use word-boundary matching to avoid 'emi' matching inside 'premium'
+  const loanKeywordPatterns = [
+    /\bloan\b/i, /\bemi\b/i, /\bhome\s+loan\b/i, /\bcar\s+loan\b/i,
+    /\bpersonal\s+loan\b/i, /\bcredit\s+card\b/i,
+    /\btrue\s+credits\b/i, /\btrue\s+balance\b/i, /\bmoneyview\b/i,
+    /\bmoney\s+view\b/i, /\bbajaj\s+finserv\b/i, /\btata\s+capital\b/i,
+    /\bfullerton\b/i, /\blending\b/i, /\bfintech\b/i, /\bl&t\s*finance\b/i, /\bltfin\b/i,
   ];
   
-  for (const keyword of loanKeywords) {
-    if (merchantLower.includes(keyword) || bodyLower.includes(keyword)) {
+  // Check merchant name first (more reliable)
+  for (const pattern of loanKeywordPatterns) {
+    if (pattern.test(merchantLower)) {
+      return 'loan';
+    }
+  }
+  // Then check body, but only with word-boundary patterns to avoid false positives
+  for (const pattern of loanKeywordPatterns) {
+    if (pattern.test(bodyLower)) {
       return 'loan';
     }
   }
@@ -285,14 +311,14 @@ export function getCategoryIcon(category: string): string {
  */
 export function getCategoryColor(category: string): string {
   const colorMap: Record<string, string> = {
-    subscription: '#9B59B6',
-    utility: '#F39C12',
-    insurance: '#3498DB',
-    loan: '#E74C3C',
-    telecom: '#1ABC9C',
-    investment: '#27AE60',
-    other: '#95A5A6',
+    subscription: '#6366D6',
+    utility: '#E08A1E',
+    insurance: '#4F7FE8',
+    loan: '#E5484D',
+    telecom: '#0E9AA7',
+    investment: '#10A37A',
+    other: '#6B7280',
   };
 
-  return colorMap[category] || '#95A5A6';
+  return colorMap[category] || '#6B7280';
 }

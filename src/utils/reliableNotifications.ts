@@ -27,7 +27,7 @@ export async function createNotificationChannels(): Promise<void> {
     vibration: true,
     vibrationPattern: [300, 500, 300, 500],
     lights: true,
-    lightColor: '#FF0000',
+    lightColor: '#E5484D',
     badge: true,
   });
 
@@ -213,7 +213,7 @@ export async function scheduleReliableReminders(payment: Payment): Promise<void>
       id: `payment-${payment.id}-today-morning`,
       time: dueDate.hour(9).minute(0).second(0),
       title: `🔴 PAYMENT TODAY: ${payment.merchantName}`,
-      body: `${categoryEmoji} ₹${payment.amount} will be debited today\nEnsure sufficient balance immediately`,
+      body: `${categoryEmoji} ${payment.merchantName} • ₹${payment.amount} will be debited today\nEnsure sufficient balance immediately`,
       channel: CHANNEL_ID_CRITICAL,
       priority: 'max' as const,
     },
@@ -233,7 +233,7 @@ export async function scheduleReliableReminders(payment: Payment): Promise<void>
       id: `payment-${payment.id}-today-afternoon`,
       time: dueDate.hour(15).minute(0).second(0),
       title: `🔴 Payment Processing: ${payment.merchantName}`,
-      body: `${categoryEmoji} ₹${payment.amount} • Verify your account`,
+      body: `${categoryEmoji} ${payment.merchantName} • ₹${payment.amount} • Verify your account`,
       channel: CHANNEL_ID_CRITICAL,
       priority: 'max' as const,
     },
@@ -243,7 +243,7 @@ export async function scheduleReliableReminders(payment: Payment): Promise<void>
       id: `payment-${payment.id}-today-evening`,
       time: dueDate.hour(18).minute(0).second(0),
       title: `🔴 Final Check: ${payment.merchantName}`,
-      body: `${categoryEmoji} ₹${payment.amount} • Confirm payment status`,
+      body: `${categoryEmoji} ${payment.merchantName} • ₹${payment.amount} • Confirm payment status`,
       channel: CHANNEL_ID_CRITICAL,
       priority: 'max' as const,
     },
@@ -276,10 +276,10 @@ export async function scheduleReliableReminders(payment: Payment): Promise<void>
             pressAction: {
               id: 'default',
             },
-            color: notification.priority === 'max' ? '#EF4444' : '#5B67CA',
+            color: notification.priority === 'max' ? '#E5484D' : '#6366D6',
             sound: 'default',
             vibrationPattern: notification.priority === 'max' ? [300, 500, 300, 500] : [300, 500],
-            lights: notification.priority === 'max' ? ['#FF0000', 300, 1000] : ['#5B67CA', 300, 1000],
+            lights: notification.priority === 'max' ? ['#E5484D', 300, 1000] : ['#6366D6', 300, 1000],
             badge: true,
             autoCancel: true,
             ongoing: false,
@@ -363,7 +363,7 @@ export async function showPersistentPaymentSummary(
       pressAction: {
         id: 'default',
       },
-      color: '#5B67CA',
+      color: '#6366D6',
       style: {
         type: AndroidStyle.BIGTEXT,
         text: lines.join('\n'),
@@ -438,7 +438,7 @@ export async function scheduleDailyDigest(
           pressAction: {
             id: 'default',
           },
-          color: '#5B67CA',
+          color: '#6366D6',
           style: {
             type: AndroidStyle.BIGTEXT,
             text: lines.join('\n'),
@@ -477,15 +477,19 @@ export async function scheduleAllReliableReminders(
   // Schedule reminders for each payment
   let totalScheduled = 0;
   for (const payment of payments) {
-    await scheduleReliableReminders(payment);
-    totalScheduled++;
+    if (payment.notificationEnabled !== false) {
+      await scheduleReliableReminders(payment);
+      totalScheduled++;
+    }
   }
 
   // Update persistent notification
   await showPersistentPaymentSummary(subscriptions, autopayTransactions);
 
-  // Schedule daily digest
-  await scheduleDailyDigest(subscriptions, autopayTransactions);
+  // Schedule daily digest if there are payments with notifications enabled
+  if (payments.some(p => p.notificationEnabled !== false)) {
+    await scheduleDailyDigest(subscriptions, autopayTransactions);
+  }
 
   console.log(`[ReliableNotifications] ✅ Scheduled reminders for ${totalScheduled} payments`);
   console.log(`[ReliableNotifications] Total notifications: ${totalScheduled * 15} (avg 15 per payment)`);
@@ -530,7 +534,7 @@ function getAllUpcomingPayments(
   const payments: Payment[] = [];
 
   subscriptions.forEach(sub => {
-    if (sub.nextRenewalDate >= now && sub.nextRenewalDate <= futureDate) {
+    if (sub.notificationEnabled !== false && sub.nextRenewalDate >= now && sub.nextRenewalDate <= futureDate) {
       payments.push({
         id: sub.id,
         merchantName: sub.merchantName,
@@ -543,7 +547,7 @@ function getAllUpcomingPayments(
   });
 
   autopayTransactions.forEach(autopay => {
-    if (autopay.nextPaymentDate && autopay.nextPaymentDate >= now && autopay.nextPaymentDate <= futureDate) {
+    if (autopay.notificationEnabled !== false && autopay.nextPaymentDate && autopay.nextPaymentDate >= now && autopay.nextPaymentDate <= futureDate) {
       payments.push({
         id: autopay.id,
         merchantName: autopay.merchantName,

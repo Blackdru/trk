@@ -117,9 +117,6 @@ export function ContactScreen({ onClose }: Props) {
         >
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
-              <View style={styles.headerIconWrapper}>
-                <Icon name="mail" size={24} color={colors.text.inverse} />
-              </View>
               <View>
                 <Text style={styles.headerTitle}>Contact Us</Text>
                 <Text style={styles.headerSubtitle}>We'd love to hear from you</Text>
@@ -139,7 +136,6 @@ export function ContactScreen({ onClose }: Props) {
                 Name <Text style={styles.required}>*</Text>
               </Text>
               <View style={styles.inputWrapper}>
-                <Icon name="user" size={18} color={colors.text.tertiary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your name"
@@ -157,7 +153,6 @@ export function ContactScreen({ onClose }: Props) {
                 Email <Text style={styles.required}>*</Text>
               </Text>
               <View style={styles.inputWrapper}>
-                <Icon name="mail" size={18} color={colors.text.tertiary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
@@ -175,7 +170,6 @@ export function ContactScreen({ onClose }: Props) {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Mobile (Optional)</Text>
               <View style={styles.inputWrapper}>
-                <Icon name="phone" size={18} color={colors.text.tertiary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your mobile number"
@@ -194,7 +188,6 @@ export function ContactScreen({ onClose }: Props) {
                 Message <Text style={styles.required}>*</Text>
               </Text>
               <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
-                <Icon name="message-square" size={18} color={colors.text.tertiary} style={styles.textAreaIcon} />
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Tell us how we can help you..."
@@ -225,7 +218,6 @@ export function ContactScreen({ onClose }: Props) {
                   <ActivityIndicator color={colors.text.inverse} />
                 ) : (
                   <>
-                    <Icon name="send" size={18} color={colors.text.inverse} />
                     <Text style={styles.submitButtonText}>Send Message</Text>
                   </>
                 )}

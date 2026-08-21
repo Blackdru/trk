@@ -71,15 +71,17 @@ export function BottomTabNavigator({
           backgroundColor: colors.surface,
           borderTopWidth: 1,
           borderTopColor: colors.border.light,
-          height: Platform.OS === 'ios' ? 88 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 28 : spacing.sm,
-          paddingTop: spacing.sm,
+          height: Platform.OS === 'ios' ? 84 : 60,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 4,
+          paddingTop: 4,
           ...shadows.md,
         },
         tabBarLabelStyle: {
           ...typography.label.small,
           fontWeight: '600',
-          marginTop: spacing.xs,
+          fontSize: 11,
+          marginTop: 0,
+          marginBottom: 2,
         },
         tabBarIcon: ({ focused, color, size }) => {
           let iconName = 'home';
@@ -218,13 +220,13 @@ const styles = StyleSheet.create({
   },
   addButtonContainer: {
     position: 'absolute',
-    top: -20,
+    top: -14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addButton: {
-    width: 56,
-    height: 56,
+    width: 48,
+    height: 48,
     borderRadius: borderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',

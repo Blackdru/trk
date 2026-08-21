@@ -18,7 +18,7 @@ interface Payment {
 interface Props {
   subscriptions: Subscription[];
   autopayTransactions: AutopayTransaction[];
-  onDismiss: () => void;
+  onDismiss?: () => void;
   onViewDetails: () => void;
 }
 
@@ -75,7 +75,7 @@ export function SmartPaymentAlert({ subscriptions, autopayTransactions, onDismis
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#EF4444', '#DC2626']}
+        colors={['#E5484D', '#C9363B']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -92,9 +92,6 @@ export function SmartPaymentAlert({ subscriptions, autopayTransactions, onDismis
               </Text>
             </View>
           </View>
-          <TouchableOpacity onPress={onDismiss} style={styles.dismissButton}>
-            <Icon name="x" size={20} color="rgba(255,255,255,0.9)" />
-          </TouchableOpacity>
         </View>
       </LinearGradient>
 
@@ -102,9 +99,9 @@ export function SmartPaymentAlert({ subscriptions, autopayTransactions, onDismis
         {todayPayments.length > 0 && (
           <View style={styles.daySection}>
             <View style={styles.daySectionHeader}>
-              <View style={[styles.dayBadge, { backgroundColor: '#FEE2E2' }]}>
-                <Icon name="alert-circle" size={14} color="#DC2626" />
-                <Text style={[styles.dayBadgeText, { color: '#DC2626' }]}>Today</Text>
+              <View style={[styles.dayBadge, { backgroundColor: '#FADADA' }]}>
+                <View style={[styles.dotIndicator, { backgroundColor: '#C9363B' }]} />
+                <Text style={[styles.dayBadgeText, { color: '#C9363B' }]}>Today</Text>
               </View>
               <Text style={styles.dayAmount}>₹{todayPayments.reduce((s, p) => s + p.amount, 0)}</Text>
             </View>
@@ -117,9 +114,9 @@ export function SmartPaymentAlert({ subscriptions, autopayTransactions, onDismis
         {tomorrowPayments.length > 0 && (
           <View style={styles.daySection}>
             <View style={styles.daySectionHeader}>
-              <View style={[styles.dayBadge, { backgroundColor: '#FEF3C7' }]}>
-                <Icon name="clock" size={14} color="#D97706" />
-                <Text style={[styles.dayBadgeText, { color: '#D97706' }]}>Tomorrow</Text>
+              <View style={[styles.dayBadge, { backgroundColor: '#FAE8C9' }]}>
+                <View style={[styles.dotIndicator, { backgroundColor: '#BE7215' }]} />
+                <Text style={[styles.dayBadgeText, { color: '#BE7215' }]}>Tomorrow</Text>
               </View>
               <Text style={styles.dayAmount}>₹{tomorrowPayments.reduce((s, p) => s + p.amount, 0)}</Text>
             </View>
@@ -132,9 +129,9 @@ export function SmartPaymentAlert({ subscriptions, autopayTransactions, onDismis
         {twoDaysPayments.length > 0 && (
           <View style={styles.daySection}>
             <View style={styles.daySectionHeader}>
-              <View style={[styles.dayBadge, { backgroundColor: '#CCFBF1' }]}>
-                <Icon name="calendar" size={14} color="#0D9488" />
-                <Text style={[styles.dayBadgeText, { color: '#0D9488' }]}>In 2 Days</Text>
+              <View style={[styles.dayBadge, { backgroundColor: '#CCEFDF' }]}>
+                <View style={[styles.dotIndicator, { backgroundColor: '#0C8A66' }]} />
+                <Text style={[styles.dayBadgeText, { color: '#0C8A66' }]}>In 2 Days</Text>
               </View>
               <Text style={styles.dayAmount}>₹{twoDaysPayments.reduce((s, p) => s + p.amount, 0)}</Text>
             </View>
@@ -154,35 +151,8 @@ export function SmartPaymentAlert({ subscriptions, autopayTransactions, onDismis
 }
 
 function PaymentItem({ payment }: { payment: Payment }) {
-  const getTypeIcon = () => {
-    if (payment.type === 'subscription') return 'repeat';
-    switch (payment.category) {
-      case 'utility': return 'zap';
-      case 'insurance': return 'shield';
-      case 'loan': return 'credit-card';
-      case 'telecom': return 'smartphone';
-      case 'investment': return 'trending-up';
-      default: return 'dollar-sign';
-    }
-  };
-
-  const getTypeColor = () => {
-    if (payment.type === 'subscription') return colors.primary[500];
-    switch (payment.category) {
-      case 'utility': return '#F59E0B';
-      case 'insurance': return '#8B5CF6';
-      case 'loan': return '#EF4444';
-      case 'telecom': return '#3B82F6';
-      case 'investment': return '#10B981';
-      default: return colors.gray[500];
-    }
-  };
-
   return (
     <View style={styles.paymentItem}>
-      <View style={[styles.paymentIcon, { backgroundColor: getTypeColor() + '20' }]}>
-        <Icon name={getTypeIcon()} size={16} color={getTypeColor()} />
-      </View>
       <View style={styles.paymentInfo}>
         <Text style={styles.paymentName} numberOfLines={1}>{payment.merchantName}</Text>
         <Text style={styles.paymentType}>
@@ -263,6 +233,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: borderRadius.sm,
+  },
+  dotIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   dayBadgeText: {
     ...typography.label.small,

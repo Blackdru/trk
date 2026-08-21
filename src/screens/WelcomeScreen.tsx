@@ -24,13 +24,13 @@ export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
       icon: 'shield',
       title: 'Welcome to UPI Tracker',
       description: 'Your personal subscription manager that helps you track and manage all your recurring payments.',
-      color: '#7139d8ff', // Purple matching app
+      color: '#6366D6', // Purple matching app
     },
     {
       icon: 'message-square',
       title: 'SMS Permission Required',
       description: 'We need access to your SMS messages to automatically detect UPI subscription payments from bank notifications.',
-      color: '#7139d8ff', // Green
+      color: '#6366D6', // Green
       details: [
         'Only UPI transaction messages are read',
         'All processing happens locally on your device',
@@ -42,7 +42,7 @@ export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
       icon: 'bell',
       title: 'Notification Permission',
       description: 'Get timely reminders before your subscriptions renew so you never miss a payment.',
-      color: '#7139d8ff', // Amber
+      color: '#6366D6', // Amber
       details: [
         'Reminders 2 days before renewal',
         'Customizable per subscription',
@@ -54,7 +54,7 @@ export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
       icon: 'lock',
       title: 'Your Privacy Matters',
       description: 'We take your privacy seriously. Here\'s our commitment to you:',
-      color: '#7139d8ff', // Purple matching app
+      color: '#6366D6', // Purple matching app
       details: [
         'All data stored locally on your device',
         'No data shared with third parties',
@@ -118,9 +118,7 @@ export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
           <View style={styles.detailsContainer}>
             {currentPageData.details.map((detail, index) => (
               <View key={index} style={styles.detailItem}>
-                <View style={[styles.bulletPoint, { backgroundColor: currentPageData.color + '20' }]}>
-                  <Icon name="check" size={16} color={currentPageData.color} />
-                </View>
+                <View style={[styles.bulletPoint, { backgroundColor: currentPageData.color }]} />
                 <Text style={styles.detailText}>{detail}</Text>
               </View>
             ))}
@@ -149,10 +147,10 @@ export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
 
             {smsPermissionStatus === 'granted' && (
               <View style={styles.permissionResult}>
-                <View style={[styles.permissionResultIcon, { backgroundColor: '#10B98120' }]}>
-                  <Icon name="check-circle" size={28} color="#000000ff" />
+                <View style={[styles.permissionResultIcon, { backgroundColor: '#10A37A20' }]}>
+                  <Icon name="check-circle" size={28} color="#0C8A66" />
                 </View>
-                <Text style={[styles.permissionResultText, { color: '#7139d8ff' }]}>
+                <Text style={[styles.permissionResultText, { color: '#6366D6' }]}>
                   SMS permission granted!
                 </Text>
               </View>
@@ -160,10 +158,10 @@ export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
 
             {smsPermissionStatus === 'denied' && (
               <View style={styles.permissionResult}>
-                <View style={[styles.permissionResultIcon, { backgroundColor: '#EF444420' }]}>
-                  <Icon name="x-circle" size={28} color="#EF4444" />
+                <View style={[styles.permissionResultIcon, { backgroundColor: '#E5484D20' }]}>
+                  <Icon name="x-circle" size={28} color="#E5484D" />
                 </View>
-                <Text style={[styles.permissionResultText, { color: '#71717A' }]}>
+                <Text style={[styles.permissionResultText, { color: '#6B7280' }]}>
                   Permission denied. You can still add subscriptions manually, or grant permission later in Settings.
                 </Text>
                 <TouchableOpacity
@@ -185,7 +183,7 @@ export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
               style={[
                 styles.indicator,
                 index === currentPage && styles.indicatorActive,
-                { backgroundColor: index === currentPage ? currentPageData.color : '#E6E8EC' },
+                { backgroundColor: index === currentPage ? currentPageData.color : '#E2E5EB' },
               ]}
             />
           ))}
@@ -212,7 +210,7 @@ export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
           <Text style={[styles.nextButtonText, isNextDisabled && styles.nextButtonTextDisabled]}>
             {isLastPage ? 'Get Started' : 'Next'}
           </Text>
-          <Icon name={isLastPage ? 'check' : 'arrow-right'} size={20} color={isNextDisabled ? '#A1A1AA' : '#FFFFFF'} />
+          <Icon name={isLastPage ? 'check' : 'arrow-right'} size={20} color={isNextDisabled ? '#9BA1AD' : '#FFFFFF'} />
         </TouchableOpacity>
       </View>
 
@@ -232,7 +230,7 @@ export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#F6F7F9',
   },
   content: {
     flex: 1,
@@ -254,14 +252,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 29,
     fontWeight: '800',
-    color: '#18181B',
+    color: '#1A1D24',
     textAlign: 'center',
     marginBottom: 14,
     letterSpacing: -0.6,
   },
   description: {
     fontSize: 16,
-    color: '#52525B',
+    color: '#5A6072',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 28,
@@ -284,19 +282,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   bulletPoint: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#CCFBF1',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     marginRight: 14,
-    marginTop: 1,
+    marginTop: 8,
   },
   detailText: {
     flex: 1,
     fontSize: 15,
-    color: '#18181B',
+    color: '#1A1D24',
     lineHeight: 22,
     fontWeight: '500',
   },
@@ -320,7 +315,7 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#F4F4F5',
+    borderTopColor: '#EFF1F5',
   },
   skipButton: {
     flex: 1,
@@ -328,12 +323,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#F6F7F9',
   },
   skipText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#71717A',
+    color: '#6B7280',
   },
   nextButton: {
     flex: 2,
@@ -361,7 +356,7 @@ const styles = StyleSheet.create({
   },
   legalText: {
     fontSize: 12,
-    color: '#A1A1AA',
+    color: '#9BA1AD',
     textAlign: 'center',
     lineHeight: 18,
   },
@@ -428,11 +423,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   nextButtonDisabled: {
-    backgroundColor: '#E4E4E7',
+    backgroundColor: '#E2E5EB',
     shadowOpacity: 0,
     elevation: 0,
   },
   nextButtonTextDisabled: {
-    color: '#A1A1AA',
+    color: '#9BA1AD',
   },
 });
