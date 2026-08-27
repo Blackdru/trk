@@ -60,18 +60,31 @@ export function calculateNextAutopayDate(
   lastPaymentDate: number,
   cycle: BillingCycle
 ): number {
-  const last = dayjs(lastPaymentDate);
+  let next = dayjs(lastPaymentDate);
+  const now = dayjs();
   
-  switch (cycle) {
-    case 'weekly':
-      return last.add(7, 'day').valueOf();
-    case 'monthly':
-      return last.add(1, 'month').valueOf();
-    case 'quarterly':
-      return last.add(3, 'month').valueOf();
-    case 'yearly':
-      return last.add(1, 'year').valueOf();
+  if (next.isAfter(now, 'day')) {
+    return next.valueOf();
   }
+
+  while (next.isBefore(now, 'day') || next.isSame(now, 'day')) {
+    switch (cycle) {
+      case 'weekly':
+        next = next.add(7, 'day');
+        break;
+      case 'monthly':
+        next = next.add(1, 'month');
+        break;
+      case 'quarterly':
+        next = next.add(3, 'month');
+        break;
+      case 'yearly':
+        next = next.add(1, 'year');
+        break;
+    }
+  }
+
+  return next.valueOf();
 }
 
 /**

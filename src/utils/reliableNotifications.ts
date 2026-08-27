@@ -280,7 +280,6 @@ export async function scheduleReliableReminders(payment: Payment): Promise<void>
             sound: 'default',
             vibrationPattern: notification.priority === 'max' ? [300, 500, 300, 500] : [300, 500],
             lights: notification.priority === 'max' ? ['#E5484D', 300, 1000] : ['#6366D6', 300, 1000],
-            badge: true,
             autoCancel: true,
             ongoing: false,
             category: AndroidCategory.REMINDER,
@@ -358,8 +357,8 @@ export async function showPersistentPaymentSummary(
     android: {
       channelId: CHANNEL_ID_PERSISTENT,
       importance: AndroidImportance.LOW,
-      ongoing: true,
-      autoCancel: false,
+      ongoing: false,
+      autoCancel: true,
       pressAction: {
         id: 'default',
       },
@@ -370,7 +369,6 @@ export async function showPersistentPaymentSummary(
       },
       category: AndroidCategory.STATUS,
       visibility: AndroidVisibility.PUBLIC,
-      badge: true,
       progress: {
         max: 7,
         current: 7 - Math.ceil(dayjs(payments[0].dueDate).diff(dayjs(), 'day')),
@@ -443,7 +441,6 @@ export async function scheduleDailyDigest(
             type: AndroidStyle.BIGTEXT,
             text: lines.join('\n'),
           },
-          badge: true,
         },
       },
       trigger

@@ -167,7 +167,7 @@ export function SettingsScreen({
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Gradient Header */}
       <LinearGradient
-        colors={gradients.purple}
+        colors={gradients.primary}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -444,10 +444,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   header: {
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
-    ...shadows.md,
+    ...shadows.sm,
   },
   headerContent: {
     flexDirection: 'row',
@@ -455,13 +455,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    ...typography.headline.medium,
+    ...typography.headline.small,
     color: colors.text.inverse,
-    marginBottom: spacing.xs,
+    fontWeight: '700',
   },
   headerSubtitle: {
     ...typography.body.small,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 2,
   },
   scrollContent: {
     flex: 1,

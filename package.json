@@ -30,8 +30,7 @@
     "react-native-screens": "^4.20.0",
     "react-native-svg": "^15.15.3",
     "react-native-vector-icons": "^10.3.0",
-    "sp-react-native-in-app-updates": "^1.4.0",
-    "victory-native": "^41.20.2"
+    "sp-react-native-in-app-updates": "^1.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

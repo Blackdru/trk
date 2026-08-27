@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
-import type { Subscription, AutopayTransaction, ParsedTransaction } from '../types';
+import type { Subscription, AutopayTransaction, ParsedTransaction, PassbookTransaction } from '../types';
 import { getSms } from '../native/SmsModule';
 import { parseSms } from '../utils/smsParser';
+import { parsePassbookBatch } from '../utils/passbookParser';
 import { detectSubscriptions, calculateNextRenewal } from '../utils/subscriptionDetector';
 import { extractAutopayTransactions } from '../utils/autopayDetector';
 import { enrichAutopayWithCycles } from '../utils/autopayTracker';
@@ -22,7 +23,8 @@ export function useSmsSync() {
     existingSubscriptions: Subscription[],
     existingAutopay: AutopayTransaction[],
     trackAutopay: boolean,
-    onSuccess: (subs: Subscription[], autopay: AutopayTransaction[], newCount: number) => void
+    onSuccess: (subs: Subscription[], autopay: AutopayTransaction[], newCount: number) => void,
+    onPassbookUpdate?: (txns: PassbookTransaction[]) => void
   ) => {
     if (isSyncing) {
       console.log('[SmsSync] Sync already in progress, skipping');
@@ -45,6 +47,17 @@ export function useSmsSync() {
       );
       
       console.log(`[SmsSync] Retrieved ${smsMessages.length} SMS messages`);
+
+      // Parse Passbook (30-day rolling window) in parallel without interfering with subscriptions
+      if (onPassbookUpdate && smsMessages.length > 0) {
+        try {
+          const passbookTxns = parsePassbookBatch(smsMessages);
+          console.log(`[SmsSync] Parsed ${passbookTxns.length} passbook transactions (30d)`);
+          onPassbookUpdate(passbookTxns);
+        } catch (pbError) {
+          console.warn('[SmsSync] Passbook parsing error:', pbError);
+        }
+      }
       
       // Perform incremental sync
       const lastSync = getLastSyncTimestamp();

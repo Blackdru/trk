@@ -16,6 +16,7 @@ import { OfflineScreen } from './src/components/OfflineScreen';
 import type { Subscription, AutopayTransaction } from './src/types';
 import { subscribeSmsReceived } from './src/native/SmsModule';
 import { parseSms } from './src/utils/smsParser';
+import { parsePassbookSms } from './src/utils/passbookParser';
 import { calculateNextRenewal } from './src/utils/subscriptionDetector';
 import { enrichAutopayWithCycles } from './src/utils/autopayTracker';
 import {
@@ -51,11 +52,14 @@ function AppContent() {
   const {
     subscriptions,
     autopayTransactions,
+    passbookTransactions,
     settings,
     isPro,
     hasSmsPermission,
     setSubscriptions,
     setAutopayTransactions,
+    setPassbookTransactions,
+    addPassbookTransaction,
     updateSettings,
     setIsPro,
     setHasSmsPermission,
@@ -153,6 +157,15 @@ function AppContent() {
     console.log('[App] Setting up SMS receiver listener');
     const subscription = subscribeSmsReceived(sms => {
       console.log('[App] SMS received:', sms.address);
+
+      // Realtime Passbook parsing (isolated, does not interfere with subscriptions)
+      const passbookTx = parsePassbookSms(sms);
+      if (passbookTx) {
+        console.log('[App] New passbook transaction:', passbookTx.merchantName, passbookTx.type, passbookTx.amount);
+        addPassbookTransaction(passbookTx);
+      }
+
+      // Existing subscription / autopay detection
       const parsed = parseSms(sms);
       if (parsed) {
         handleNewTransaction(
@@ -172,7 +185,7 @@ function AppContent() {
       console.log('[App] Removing SMS receiver listener');
       subscription.remove();
     };
-  }, [hasSmsPermission, subscriptions, autopayTransactions, handleNewTransaction]);
+  }, [hasSmsPermission, subscriptions, autopayTransactions, handleNewTransaction, addPassbookTransaction]);
 
   // Schedule payment alarms and notifications
   useEffect(() => {
@@ -298,9 +311,12 @@ function AppContent() {
             ]
           );
         }
+      },
+      (passbookTxns) => {
+        setPassbookTransactions(passbookTxns);
       }
     );
-  }, [subscriptions, autopayTransactions, settings.trackAutopay, syncSms]);
+  }, [subscriptions, autopayTransactions, settings.trackAutopay, syncSms, setPassbookTransactions]);
 
   const checkUpcomingPayments = useCallback(() => {
     const renewals = getUpcomingRenewals(subscriptions);
@@ -595,6 +611,7 @@ function AppContent() {
         <BottomTabNavigator
           subscriptions={subscriptions}
           autopayTransactions={autopayTransactions}
+          passbookTransactions={passbookTransactions}
           settings={settings}
           onAddSubscription={handleAddSubscription}
           onAddAutopay={handleAddAutopay}

@@ -3,121 +3,78 @@ import type { ParsedTransaction, Subscription, BillingCycle } from '../types';
 import { isKnownSubscriptionService, getStandardizedMerchantName, findMerchantPattern } from './merchantPatterns';
 
 /**
- * Group transactions into subscriptions based on merchant, amount, and interval.
+ * Group transactions into subscriptions strictly for recognized app/media services.
  * 
- * Grouping logic:
- * - Same merchant name (case-insensitive)
- * - Same amount (exact match)
- * - Interval approximately: 7 days (weekly), 30 days (monthly), 90 days (quarterly), 365 days (yearly)
+ * Rules:
+ * - Must be a known digital app subscription (e.g. Netflix, Spotify, Prime, Hotstar, Google One, etc.)
+ * - Must have amount > 0 (skip ₹0 placeholders from mandate setups)
+ * - Must NOT be a loan, EMI, insurance, telecom, utility, or general bank mandate
  */
 export function detectSubscriptions(transactions: ParsedTransaction[]): Subscription[] {
-  const grouped = groupTransactions(transactions);
+  // Filter out any zero or negative amounts immediately
+  const validTxns = transactions.filter(t => t.amount > 0);
+  const grouped = groupTransactions(validTxns);
   const subscriptions: Subscription[] = [];
 
-  console.log(`[SubscriptionDetector] Processing ${transactions.length} transactions`);
+  console.log(`[SubscriptionDetector] Processing ${validTxns.length} valid transactions`);
   console.log(`[SubscriptionDetector] Found ${Object.keys(grouped).length} unique merchant-amount combinations`);
 
   for (const [key, txns] of Object.entries(grouped)) {
     const sortedTxns = txns.sort((a, b) => a.date - b.date);
-    
-    // For single transaction, check if it's likely a subscription based on keywords or payment type
-    if (txns.length === 1) {
-      const txn = sortedTxns[0];
-      const merchantLower = txn.merchantName.toLowerCase().trim();
-      
-      // Check if it's a known subscription service
-      const isKnownService = isSubscriptionKeyword(txn);
-      
-      // Explicit non-subscriptions (AWS, LIC, Utilities, Loans, plain "Google", "Unknown Merchant") should NOT be app subscriptions
-      const isPlainGoogle = merchantLower === 'google';
-      const isUnknownMerchant = merchantLower === 'unknown merchant';
-      const pattern = findMerchantPattern(txn.merchantName) || (txn.rawSms ? findMerchantPattern(txn.rawSms) : null);
-      const isExplicitNonSubscription = (pattern && !pattern.isSubscription) || isPlainGoogle || isUnknownMerchant;
-      
-      // RELAXED RULE: Create subscription for Autopay/Mandate transaction, UNLESS explicitly a non-subscription service
-      const isLikelySubscription = !isExplicitNonSubscription && (isKnownService || txn.paymentType === 'Autopay' || txn.paymentType === 'Mandate');
-      
-      if (isLikelySubscription) {
-        const cycle: BillingCycle = 'monthly'; // Default assumption for subscriptions
-        const nextRenewal = calculateNextRenewal(txn.date, cycle);
-        
-        console.log(`[SubscriptionDetector] Single autopay/mandate for ${txn.merchantName}, creating subscription entry (known service: ${isKnownService})`);
-        
-        subscriptions.push({
-          id: `sms-${key}`,
-          merchantName: txn.merchantName,
-          amount: txn.amount,
-          billingCycle: cycle,
-          nextRenewalDate: nextRenewal,
-          lastPaymentDate: txn.date,
-          source: 'sms',
-          monthlyEquivalent: calculateMonthlyEquivalent(txn.amount, cycle),
-          notificationEnabled: true,
-          transactions: sortedTxns,
-        });
-      } else {
-        console.log(`[SubscriptionDetector] Single transaction for ${txn.merchantName}, not creating subscription (not autopay/mandate)`);
-      }
-      continue;
-    }
-
-    // Multiple transactions - try to detect pattern
-    const cycle = detectBillingCycle(sortedTxns);
-    
-    // If we have multiple transactions but can't detect cycle, check if it's autopay/mandate
-    if (!cycle) {
-      const firstTxn = sortedTxns[0];
-      const merchantLower = firstTxn.merchantName.toLowerCase().trim();
-      const isKnownService = isSubscriptionKeyword(firstTxn);
-      
-      const isPlainGoogle = merchantLower === 'google';
-      const isUnknownMerchant = merchantLower === 'unknown merchant';
-      const pattern = findMerchantPattern(firstTxn.merchantName) || (firstTxn.rawSms ? findMerchantPattern(firstTxn.rawSms) : null);
-      const isExplicitNonSubscription = (pattern && !pattern.isSubscription) || isPlainGoogle || isUnknownMerchant;
-      
-      // RELAXED RULE: Treat as subscription if it has autopay/mandate OR is a known service, UNLESS explicitly a non-subscription service
-      if (!isExplicitNonSubscription && (isKnownService || firstTxn.paymentType === 'Autopay' || firstTxn.paymentType === 'Mandate')) {
-        // Assume monthly for services even if pattern is unclear
-        const lastTxn = sortedTxns[sortedTxns.length - 1];
-        const nextRenewal = calculateNextRenewal(lastTxn.date, 'monthly');
-        
-        console.log(`[SubscriptionDetector] ${txns.length} transactions for ${firstTxn.merchantName}, pattern unclear but treating as monthly subscription (known: ${isKnownService}, autopay: ${firstTxn.paymentType})`);
-        
-        subscriptions.push({
-          id: `sms-${key}`,
-          merchantName: lastTxn.merchantName,
-          amount: lastTxn.amount,
-          billingCycle: 'monthly',
-          nextRenewalDate: nextRenewal,
-          lastPaymentDate: lastTxn.date,
-          source: 'sms',
-          monthlyEquivalent: calculateMonthlyEquivalent(lastTxn.amount, 'monthly'),
-          notificationEnabled: true,
-          transactions: sortedTxns,
-        });
-      } else {
-        console.log(`[SubscriptionDetector] Could not detect cycle for ${firstTxn.merchantName} with ${txns.length} transactions (not autopay/mandate or known service)`);
-      }
-      continue;
-    }
-
-    // We detected a cycle - create subscription regardless of whether it's a known service
-    // This allows detection of any recurring payment pattern
     const firstTxn = sortedTxns[0];
-    const isKnownService = isSubscriptionKeyword(firstTxn);
-    
-    console.log(`[SubscriptionDetector] Detected ${cycle} pattern for ${firstTxn.merchantName} (known service: ${isKnownService})`);
-    
-    // Remove the restriction that only allows known services
+    const merchantName = firstTxn.merchantName;
 
+    // Check against single source of truth
+    const isAppSubscription = isSubscriptionKeyword(firstTxn);
+    const pattern = findMerchantPattern(merchantName) || (firstTxn.rawSms ? findMerchantPattern(firstTxn.rawSms) : null);
+
+    // If explicitly marked as non-subscription (loan, utility, insurance, telecom, etc.), SKIP
+    if (pattern && !pattern.isSubscription) {
+      console.log(`[SubscriptionDetector] Skipping ${merchantName} - categorized as ${pattern.category} (not an app subscription)`);
+      continue;
+    }
+
+    // Only create a subscription if it is a verified digital app subscription service
+    if (!isAppSubscription) {
+      console.log(`[SubscriptionDetector] Skipping ${merchantName} - not a recognized app subscription service`);
+      continue;
+    }
+
+    const cleanName = getStandardizedMerchantName(merchantName, firstTxn.rawSms);
+
+    // For single transaction of a known app subscription service, assume monthly
+    if (txns.length === 1) {
+      const cycle: BillingCycle = 'monthly';
+      const nextRenewal = calculateNextRenewal(firstTxn.date, cycle);
+
+      console.log(`[SubscriptionDetector] App subscription detected: ${cleanName} (₹${firstTxn.amount}/${cycle})`);
+
+      subscriptions.push({
+        id: `sms-${key}`,
+        merchantName: cleanName,
+        amount: firstTxn.amount,
+        billingCycle: cycle,
+        nextRenewalDate: nextRenewal,
+        lastPaymentDate: firstTxn.date,
+        source: 'sms',
+        monthlyEquivalent: calculateMonthlyEquivalent(firstTxn.amount, cycle),
+        notificationEnabled: true,
+        transactions: sortedTxns,
+        category: pattern?.category || 'Entertainment',
+      });
+      continue;
+    }
+
+    // Multiple transactions for known app service - detect billing cycle
+    const cycle = detectBillingCycle(sortedTxns) || 'monthly';
     const lastTxn = sortedTxns[sortedTxns.length - 1];
     const nextRenewal = calculateNextRenewal(lastTxn.date, cycle);
 
-    console.log(`[SubscriptionDetector] Detected ${cycle} subscription for ${lastTxn.merchantName}`);
+    console.log(`[SubscriptionDetector] Recurring ${cycle} subscription detected: ${cleanName} (₹${lastTxn.amount})`);
 
     subscriptions.push({
       id: `sms-${key}`,
-      merchantName: lastTxn.merchantName,
+      merchantName: cleanName,
       amount: lastTxn.amount,
       billingCycle: cycle,
       nextRenewalDate: nextRenewal,
@@ -126,15 +83,16 @@ export function detectSubscriptions(transactions: ParsedTransaction[]): Subscrip
       monthlyEquivalent: calculateMonthlyEquivalent(lastTxn.amount, cycle),
       notificationEnabled: true,
       transactions: sortedTxns,
+      category: pattern?.category || 'Entertainment',
     });
   }
 
-  console.log(`[SubscriptionDetector] Detected ${subscriptions.length} subscriptions`);
+  console.log(`[SubscriptionDetector] Detected ${subscriptions.length} active app subscriptions`);
   return subscriptions;
 }
 
 /**
- * Check if transaction is likely a subscription based on merchant name or keywords
+ * Check if transaction is an app subscription service
  */
 function isSubscriptionKeyword(transaction: ParsedTransaction): boolean {
   return isKnownSubscriptionService(transaction.merchantName, transaction.rawSms);
@@ -144,7 +102,6 @@ function groupTransactions(transactions: ParsedTransaction[]): Record<string, Pa
   const groups: Record<string, ParsedTransaction[]> = {};
 
   for (const txn of transactions) {
-    // Key: normalized merchant name + amount
     const key = `${txn.merchantName.toLowerCase().trim()}-${txn.amount}`;
     if (!groups[key]) {
       groups[key] = [];
@@ -168,55 +125,49 @@ function detectBillingCycle(sortedTransactions: ParsedTransaction[]): BillingCyc
   }
 
   const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-  
-  console.log(`[SubscriptionDetector] Intervals: ${intervals.join(', ')} days, Average: ${avgInterval.toFixed(1)} days`);
 
-  // Weekly: 5-10 days
-  if (avgInterval >= 5 && avgInterval <= 10) {
-    return 'weekly';
-  }
-  // Monthly: 25-35 days (relaxed from 25-35 to 20-40)
-  if (avgInterval >= 20 && avgInterval <= 40) {
-    return 'monthly';
-  }
-  // Quarterly: 80-100 days (relaxed to 70-110)
-  if (avgInterval >= 70 && avgInterval <= 110) {
-    return 'quarterly';
-  }
-  // Yearly: 350-380 days (relaxed to 330-400)
-  if (avgInterval >= 330 && avgInterval <= 400) {
-    return 'yearly';
-  }
+  if (avgInterval >= 5 && avgInterval <= 10) return 'weekly';
+  if (avgInterval >= 20 && avgInterval <= 40) return 'monthly';
+  if (avgInterval >= 70 && avgInterval <= 110) return 'quarterly';
+  if (avgInterval >= 330 && avgInterval <= 400) return 'yearly';
 
-  // If intervals are very small (test data), assume monthly
-  if (avgInterval < 5 && avgInterval > 0) {
-    console.log(`[SubscriptionDetector] Very small intervals detected (test data?), assuming monthly`);
-    return 'monthly';
-  }
-
-  console.log(`[SubscriptionDetector] No cycle matched for average interval: ${avgInterval.toFixed(1)} days`);
   return null;
 }
 
 export function calculateNextRenewal(lastPaymentDate: number, cycle: BillingCycle): number {
-  const last = dayjs(lastPaymentDate);
-  
-  switch (cycle) {
-    case 'weekly':
-      return last.add(7, 'day').valueOf();
-    case 'monthly':
-      return last.add(1, 'month').valueOf();
-    case 'quarterly':
-      return last.add(3, 'month').valueOf();
-    case 'yearly':
-      return last.add(1, 'year').valueOf();
+  let next = dayjs(lastPaymentDate);
+  const now = dayjs();
+
+  // If lastPaymentDate is already in the future, return it
+  if (next.isAfter(now, 'day')) {
+    return next.valueOf();
   }
+
+  // Advance by cycle until next is in the future (strictly after today)
+  while (next.isBefore(now, 'day') || next.isSame(now, 'day')) {
+    switch (cycle) {
+      case 'weekly':
+        next = next.add(7, 'day');
+        break;
+      case 'monthly':
+        next = next.add(1, 'month');
+        break;
+      case 'quarterly':
+        next = next.add(3, 'month');
+        break;
+      case 'yearly':
+        next = next.add(1, 'year');
+        break;
+    }
+  }
+
+  return next.valueOf();
 }
 
 export function calculateMonthlyEquivalent(amount: number, cycle: BillingCycle): number {
   switch (cycle) {
     case 'weekly':
-      return Math.round(amount * 4.33 * 100) / 100; // ~4.33 weeks per month
+      return Math.round(amount * 4.33 * 100) / 100;
     case 'monthly':
       return amount;
     case 'quarterly':

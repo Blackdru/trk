@@ -142,9 +142,9 @@ export function SubscriptionsScreen({ subscriptions, onDelete }: Props) {
 
   const renderGridItem = ({ item }: { item: Subscription }) => {
     const isCancelledSub = isCancelled(item.id);
-    const isUrgent = item.nextRenewalDate 
-      ? (item.nextRenewalDate - Date.now()) < 2 * 24 * 60 * 60 * 1000
-      : false;
+    const now = Date.now();
+    const diff = item.nextRenewalDate ? (item.nextRenewalDate - now) : -1;
+    const isUrgent = diff >= 0 && diff <= 3 * 24 * 60 * 60 * 1000;
 
     return (
       <View style={styles.gridCard}>
@@ -205,11 +205,20 @@ export function SubscriptionsScreen({ subscriptions, onDelete }: Props) {
     );
   };
 
+  const getDueMessage = (date: number) => {
+    const daysDiff = dayjs(date).startOf('day').diff(dayjs().startOf('day'), 'day');
+    if (daysDiff === 0) return 'Payment due today';
+    if (daysDiff === 1) return 'Payment due tomorrow';
+    if (daysDiff === 2) return 'Payment due in 2 days';
+    if (daysDiff === 3) return 'Payment due in 3 days';
+    return `Payment due in ${daysDiff} days`;
+  };
+
   const renderListItem = ({ item }: { item: Subscription }) => {
     const isCancelledSub = isCancelled(item.id);
-    const isUrgent = item.nextRenewalDate 
-      ? (item.nextRenewalDate - Date.now()) < 2 * 24 * 60 * 60 * 1000
-      : false;
+    const now = Date.now();
+    const diff = item.nextRenewalDate ? (item.nextRenewalDate - now) : -1;
+    const isUrgent = diff >= 0 && diff <= 3 * 24 * 60 * 60 * 1000;
 
     return (
       <View style={styles.listCard}>
@@ -221,7 +230,7 @@ export function SubscriptionsScreen({ subscriptions, onDelete }: Props) {
             <View style={styles.urgentStrip}>
               <Icon name="alert-circle" size={12} color={colors.warning[700]} />
               <Text style={styles.urgentStripText}>
-                Payment due {dayjs(item.nextRenewalDate).fromNow()}
+                {getDueMessage(item.nextRenewalDate)}
               </Text>
             </View>
           )}
@@ -463,9 +472,9 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
-    ...shadows.md,
+    ...shadows.sm,
   },
   headerContent: {
     flexDirection: 'row',
@@ -478,17 +487,18 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...typography.headline.small,
     color: colors.text.inverse,
-    marginBottom: spacing.xs,
+    fontWeight: '700',
   },
   headerSubtitle: {
     ...typography.body.small,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 2,
   },
   viewModeButton: {
     width: 40,
     height: 40,
-    borderRadius: borderRadius.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },

@@ -1,7 +1,6 @@
 export * from './BannerAdComponent';
 export * from './CancellationModal';
 export * from './Card';
-export * from './ChartCard';
 export * from './RenewalAlertBanner';
 export * from './ReminderScheduleInfo';
 export * from './SmartPaymentAlert';

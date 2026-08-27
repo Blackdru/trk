@@ -6,9 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Linking,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
+import LinearGradient from 'react-native-linear-gradient';
+import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
 
 interface Props {
   onComplete: (smsPermissionGranted: boolean) => void;
@@ -16,213 +20,179 @@ interface Props {
 }
 
 export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
-  const [currentPage, setCurrentPage] = useState(0);
-  const [smsPermissionStatus, setSmsPermissionStatus] = useState<'pending' | 'requesting' | 'granted' | 'denied'>('pending');
+  const [smsStatus, setSmsStatus] = useState<'idle' | 'requesting' | 'granted' | 'denied'>('idle');
 
-  const pages = [
-    {
-      icon: 'shield',
-      title: 'Welcome to UPI Tracker',
-      description: 'Your personal subscription manager that helps you track and manage all your recurring payments.',
-      color: '#6366D6', // Purple matching app
-    },
-    {
-      icon: 'message-square',
-      title: 'SMS Permission Required',
-      description: 'We need access to your SMS messages to automatically detect UPI subscription payments from bank notifications.',
-      color: '#6366D6', // Green
-      details: [
-        'Only UPI transaction messages are read',
-        'All processing happens locally on your device',
-        'No SMS data is sent to external servers',
-        'You can revoke permission anytime',
-      ],
-    },
-    {
-      icon: 'bell',
-      title: 'Notification Permission',
-      description: 'Get timely reminders before your subscriptions renew so you never miss a payment.',
-      color: '#6366D6', // Amber
-      details: [
-        'Reminders 2 days before renewal',
-        'Customizable per subscription',
-        'Helps avoid unexpected charges',
-        'Can be disabled anytime',
-      ],
-    },
-    {
-      icon: 'lock',
-      title: 'Your Privacy Matters',
-      description: 'We take your privacy seriously. Here\'s our commitment to you:',
-      color: '#6366D6', // Purple matching app
-      details: [
-        'All data stored locally on your device',
-        'No data shared with third parties',
-        'Encrypted local storage',
-        'You control your data completely',
-      ],
-    },
-  ];
+  const handleAction = async () => {
+    if (smsStatus === 'requesting') return;
 
-  const currentPageData = pages[currentPage];
-  const isLastPage = currentPage === pages.length - 1;
-  const isSmsPage = currentPage === 1;
-  const isNextDisabled = isSmsPage && smsPermissionStatus !== 'granted';
-  const showSkipButton = !isLastPage && currentPage !== 0 && currentPage !== 1;
+    if (smsStatus === 'granted') {
+      onComplete(true);
+      return;
+    }
 
-  const handleRequestSmsPermission = async () => {
-    if (!onRequestSmsPermission || smsPermissionStatus === 'requesting') return;
+    if (!onRequestSmsPermission) {
+      onComplete(true);
+      return;
+    }
 
-    setSmsPermissionStatus('requesting');
+    setSmsStatus('requesting');
     try {
       const granted = await onRequestSmsPermission();
-      setSmsPermissionStatus(granted ? 'granted' : 'denied');
+      if (granted) {
+        setSmsStatus('granted');
+        setTimeout(() => {
+          onComplete(true);
+        }, 400);
+      } else {
+        setSmsStatus('denied');
+      }
     } catch (error) {
-      console.error('[WelcomeScreen] Permission request error:', error);
-      setSmsPermissionStatus('denied');
+      console.error('[WelcomeScreen] Permission error:', error);
+      setSmsStatus('denied');
     }
   };
 
-  const handleNext = () => {
-    if (isLastPage) {
-      onComplete(smsPermissionStatus === 'granted');
-    } else {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const handleSkip = () => {
-    setCurrentPage(pages.length - 1);
+  const handleOpenSettings = () => {
+    Linking.openSettings().catch(err => console.warn('Could not open settings', err));
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.contentContainer}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Icon */}
-        <View style={[styles.iconWrapper, { backgroundColor: currentPageData.color + '20' }]}>
-          <Icon name={currentPageData.icon} size={64} color={currentPageData.color} />
-        </View>
-
-        {/* Title */}
-        <Text style={styles.title}>{currentPageData.title}</Text>
-
-        {/* Description */}
-        <Text style={styles.description}>{currentPageData.description}</Text>
-
-        {/* Details List */}
-        {currentPageData.details && (
-          <View style={styles.detailsContainer}>
-            {currentPageData.details.map((detail, index) => (
-              <View key={index} style={styles.detailItem}>
-                <View style={[styles.bulletPoint, { backgroundColor: currentPageData.color }]} />
-                <Text style={styles.detailText}>{detail}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* SMS Permission Action Button - shown on SMS permission page */}
-        {isSmsPage && (
-          <View style={styles.permissionActionContainer}>
-            {smsPermissionStatus === 'pending' && (
-              <TouchableOpacity
-                style={[styles.permissionButton, { backgroundColor: currentPageData.color }]}
-                onPress={handleRequestSmsPermission}
-              >
-                <Icon name="unlock" size={20} color="#FFFFFF" />
-                <Text style={styles.permissionButtonText}>Grant SMS Access</Text>
-              </TouchableOpacity>
-            )}
-
-            {smsPermissionStatus === 'requesting' && (
-              <View style={[styles.permissionButton, { backgroundColor: currentPageData.color, opacity: 0.7 }]}>
-                <ActivityIndicator color="#FFFFFF" size="small" />
-                <Text style={styles.permissionButtonText}>Requesting...</Text>
-              </View>
-            )}
-
-            {smsPermissionStatus === 'granted' && (
-              <View style={styles.permissionResult}>
-                <View style={[styles.permissionResultIcon, { backgroundColor: '#10A37A20' }]}>
-                  <Icon name="check-circle" size={28} color="#0C8A66" />
-                </View>
-                <Text style={[styles.permissionResultText, { color: '#6366D6' }]}>
-                  SMS permission granted!
-                </Text>
-              </View>
-            )}
-
-            {smsPermissionStatus === 'denied' && (
-              <View style={styles.permissionResult}>
-                <View style={[styles.permissionResultIcon, { backgroundColor: '#E5484D20' }]}>
-                  <Icon name="x-circle" size={28} color="#E5484D" />
-                </View>
-                <Text style={[styles.permissionResultText, { color: '#6B7280' }]}>
-                  Permission denied. You can still add subscriptions manually, or grant permission later in Settings.
-                </Text>
-                <TouchableOpacity
-                  style={[styles.retryButton, { borderColor: currentPageData.color }]}
-                  onPress={handleRequestSmsPermission}
-                >
-                  <Text style={[styles.retryButtonText, { color: currentPageData.color }]}>Try Again</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Page Indicators */}
-        <View style={styles.indicators}>
-          {pages.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.indicator,
-                index === currentPage && styles.indicatorActive,
-                { backgroundColor: index === currentPage ? currentPageData.color : '#E2E5EB' },
-              ]}
+        {/* Top Hero Brand Header with App Logo */}
+        <View style={styles.heroSection}>
+          <View style={styles.logoWrapper}>
+            <Image
+              source={require('../assets/app_logo.png')}
+              style={styles.appLogo}
+              resizeMode="cover"
             />
-          ))}
+          </View>
+
+          <View style={styles.badgePill}>
+            <View style={styles.badgeDot} />
+            <Text style={styles.badgePillText}>UPI TRACKER & AUTOPAY MANAGER</Text>
+          </View>
+
+          <Text style={styles.heroTitle}>Track Your Money,{'\n'}Effortlessly</Text>
+          <Text style={styles.heroSubtitle}>
+            Automatically discover UPI subscriptions, recurring autopays & daily expenses straight from your messages.
+          </Text>
         </View>
+
+        {/* Feature Highlights Cards */}
+        <View style={styles.featuresContainer}>
+          <View style={styles.featureCard}>
+            <View style={[styles.featureIconBox, { backgroundColor: colors.primary[50] }]}>
+              <Icon name="refresh-cw" size={17} color={colors.primary[600]} />
+            </View>
+            <View style={styles.featureTextContent}>
+              <Text style={styles.featureTitle}>Auto-Sync From SMS</Text>
+              <Text style={styles.featureDescription}>
+                Instant detection of UPI subscriptions, recurring mandates & bank transactions.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.featureCard}>
+            <View style={[styles.featureIconBox, { backgroundColor: colors.warning[50] }]}>
+              <Icon name="bell" size={17} color={colors.warning[500]} />
+            </View>
+            <View style={styles.featureTextContent}>
+              <Text style={styles.featureTitle}>Smart Renewal Reminders</Text>
+              <Text style={styles.featureDescription}>
+                Get timely advance alerts before renewals to avoid unexpected bank debits.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.featureCard}>
+            <View style={[styles.featureIconBox, { backgroundColor: colors.success[50] }]}>
+              <Icon name="shield" size={17} color={colors.success[600]} />
+            </View>
+            <View style={styles.featureTextContent}>
+              <Text style={styles.featureTitle}>100% On-Device & Private</Text>
+              <Text style={styles.featureDescription}>
+                SMS processing stays strictly on your phone. No personal data or OTPs ever leave your device.
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Privacy & Permission Callout */}
+        <View style={styles.permissionCard}>
+          <View style={styles.permissionHeader}>
+            <Icon name="lock" size={15} color={colors.primary[600]} />
+            <Text style={styles.permissionCardTitle}>Read-Only SMS Access</Text>
+          </View>
+          <Text style={styles.permissionCardDesc}>
+            Used strictly to parse bank debit notifications locally. We never read OTPs, personal chats, or share any data.
+          </Text>
+        </View>
+
+        {/* Denied Feedback Banner */}
+        {smsStatus === 'denied' && (
+          <View style={styles.deniedBanner}>
+            <View style={styles.deniedHeader}>
+              <Icon name="alert-circle" size={18} color={colors.error[500]} />
+              <Text style={styles.deniedTitle}>SMS Permission Required</Text>
+            </View>
+            <Text style={styles.deniedDesc}>
+              Track needs SMS permission to detect your subscriptions and passbook transactions.
+            </Text>
+            <View style={styles.deniedActionRow}>
+              <TouchableOpacity style={styles.deniedRetryBtn} onPress={handleAction}>
+                <Text style={styles.deniedRetryText}>Try Again</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.deniedSettingsBtn} onPress={handleOpenSettings}>
+                <Text style={styles.deniedSettingsText}>Open App Settings</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
-      {/* Bottom Actions */}
+      {/* Footer Action Button */}
       <View style={styles.footer}>
-        {showSkipButton && (
-          <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-            <Text style={styles.skipText}>Skip</Text>
-          </TouchableOpacity>
-        )}
-
         <TouchableOpacity
-          style={[
-            styles.nextButton,
-            { backgroundColor: currentPageData.color },
-            isNextDisabled && styles.nextButtonDisabled
-          ]}
-          onPress={handleNext}
-          disabled={isNextDisabled}
+          style={styles.primaryButtonWrapper}
+          onPress={handleAction}
+          disabled={smsStatus === 'requesting'}
+          activeOpacity={0.88}
         >
-          <Text style={[styles.nextButtonText, isNextDisabled && styles.nextButtonTextDisabled]}>
-            {isLastPage ? 'Get Started' : 'Next'}
-          </Text>
-          <Icon name={isLastPage ? 'check' : 'arrow-right'} size={20} color={isNextDisabled ? '#9BA1AD' : '#FFFFFF'} />
+          <LinearGradient
+            colors={smsStatus === 'granted' ? gradients.success : gradients.primary}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.primaryButton}
+          >
+            {smsStatus === 'requesting' ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator color={colors.text.inverse} size="small" />
+                <Text style={styles.primaryButtonText}>Requesting Access...</Text>
+              </View>
+            ) : smsStatus === 'granted' ? (
+              <View style={styles.loadingRow}>
+                <Icon name="check" size={20} color={colors.text.inverse} />
+                <Text style={styles.primaryButtonText}>Access Granted! Starting...</Text>
+              </View>
+            ) : (
+              <View style={styles.loadingRow}>
+                <Text style={styles.primaryButtonText}>Enable SMS & Get Started</Text>
+                <Icon name="arrow-right" size={18} color={colors.text.inverse} />
+              </View>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
-      </View>
 
-      {/* Legal Notice */}
-      {isLastPage && (
-        <View style={styles.legalNotice}>
-          <Text style={styles.legalText}>
-            By continuing, you agree to our Terms of Service and Privacy Policy.
-            You can manage permissions in Settings anytime.
-          </Text>
-        </View>
-      )}
+        <Text style={styles.footerNote}>
+          Local on-device parsing • Bank-grade privacy • No account required
+        </Text>
+      </View>
     </SafeAreaView>
   );
 }
@@ -230,204 +200,236 @@ export function WelcomeScreen({ onComplete, onRequestSmsPermission }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F6F7F9',
+    backgroundColor: colors.background,
   },
-  content: {
+  scrollView: {
     flex: 1,
   },
-  contentContainer: {
-    paddingHorizontal: 28,
-    paddingTop: 60,
-    paddingBottom: 32,
+  scrollContent: {
+    paddingHorizontal: spacing.lg + 2,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  heroSection: {
     alignItems: 'center',
+    marginBottom: spacing.lg,
   },
-  iconWrapper: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 32,
+  logoWrapper: {
+    width: 68,
+    height: 68,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    padding: 3,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    ...shadows.md,
   },
-  title: {
-    fontSize: 29,
-    fontWeight: '800',
-    color: '#1A1D24',
-    textAlign: 'center',
-    marginBottom: 14,
-    letterSpacing: -0.6,
-  },
-  description: {
-    fontSize: 16,
-    color: '#5A6072',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 28,
-  },
-  detailsContainer: {
+  appLogo: {
     width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 20,
-    marginBottom: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
+    height: '100%',
+    borderRadius: 15,
   },
-  detailItem: {
+  badgePill: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
+    alignItems: 'center',
+    backgroundColor: colors.primary[50],
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 5,
+    borderRadius: borderRadius.full,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.primary[100],
   },
-  bulletPoint: {
+  badgeDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 14,
-    marginTop: 8,
+    backgroundColor: colors.primary[500],
+    marginRight: 6,
   },
-  detailText: {
-    flex: 1,
-    fontSize: 15,
-    color: '#1A1D24',
-    lineHeight: 22,
-    fontWeight: '500',
+  badgePillText: {
+    ...typography.label.small,
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: colors.primary[700],
+    letterSpacing: 0.6,
   },
-  indicators: {
+  heroTitle: {
+    ...typography.headline.large,
+    fontSize: 25,
+    fontWeight: '800',
+    color: colors.text.primary,
+    textAlign: 'center',
+    letterSpacing: -0.5,
+    lineHeight: 31,
+    marginBottom: 6,
+  },
+  heroSubtitle: {
+    ...typography.body.medium,
+    fontSize: 13.5,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 19,
+    paddingHorizontal: spacing.xs,
+  },
+  featuresContainer: {
+    gap: spacing.sm + 1,
+    marginBottom: spacing.md,
+  },
+  featureCard: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 20,
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md - 1,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border.light,
+    ...shadows.sm,
   },
-  indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  featureIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
   },
-  indicatorActive: {
-    width: 28,
+  featureTextContent: {
+    flex: 1,
+  },
+  featureTitle: {
+    ...typography.body.medium,
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: colors.text.primary,
+    marginBottom: 1,
+  },
+  featureDescription: {
+    ...typography.body.small,
+    fontSize: 11.5,
+    color: colors.text.secondary,
+    lineHeight: 16,
+  },
+  permissionCard: {
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.sm + 4,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary[100],
+    marginBottom: spacing.xs,
+  },
+  permissionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 3,
+    gap: 6,
+  },
+  permissionCardTitle: {
+    ...typography.body.small,
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: colors.primary[700],
+  },
+  permissionCardDesc: {
+    ...typography.body.small,
+    fontSize: 11.5,
+    color: colors.text.secondary,
+    lineHeight: 16,
+  },
+  deniedBanner: {
+    backgroundColor: colors.error[50],
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.error[200],
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  deniedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  deniedTitle: {
+    ...typography.body.small,
+    fontWeight: '700',
+    color: colors.error[700],
+  },
+  deniedDesc: {
+    ...typography.body.small,
+    fontSize: 12,
+    color: colors.error[800],
+    lineHeight: 17,
+    marginBottom: spacing.sm,
+  },
+  deniedActionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  deniedRetryBtn: {
+    backgroundColor: colors.error[600],
+    paddingVertical: 7,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+  },
+  deniedRetryText: {
+    ...typography.label.small,
+    color: colors.text.inverse,
+    fontWeight: '700',
+  },
+  deniedSettingsBtn: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.error[300],
+    paddingVertical: 7,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.sm,
+  },
+  deniedSettingsText: {
+    ...typography.label.small,
+    color: colors.error[700],
+    fontWeight: '600',
   },
   footer: {
-    flexDirection: 'row',
-    paddingHorizontal: 28,
-    paddingVertical: 18,
-    gap: 12,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: '#EFF1F5',
+    borderTopColor: colors.border.light,
+    ...shadows.md,
   },
-  skipButton: {
-    flex: 1,
-    paddingVertical: 15,
-    borderRadius: 12,
+  primaryButtonWrapper: {
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    ...shadows.sm,
+  },
+  primaryButton: {
+    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F6F7F9',
   },
-  skipText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  nextButton: {
-    flex: 2,
-    flexDirection: 'row',
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  nextButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  legalNotice: {
-    paddingHorizontal: 28,
-    paddingBottom: 18,
-    backgroundColor: '#FFFFFF',
-  },
-  legalText: {
-    fontSize: 12,
-    color: '#9BA1AD',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  permissionActionContainer: {
-    width: '100%',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  permissionButton: {
+  loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 14,
-    gap: 10,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+    gap: spacing.sm,
   },
-  permissionButtonText: {
-    fontSize: 17,
+  primaryButtonText: {
+    ...typography.label.large,
+    color: colors.text.inverse,
     fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 15,
   },
-  permissionResult: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  permissionResultIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  permissionResultText: {
-    fontSize: 14,
+  footerNote: {
+    ...typography.label.small,
+    fontSize: 10.5,
+    color: colors.text.tertiary,
     textAlign: 'center',
-    lineHeight: 20,
-    fontWeight: '500',
-  },
-  retryButton: {
-    marginTop: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 10,
-    borderWidth: 1.5,
-  },
-  retryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  nextButtonDisabled: {
-    backgroundColor: '#E2E5EB',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  nextButtonTextDisabled: {
-    color: '#9BA1AD',
+    marginTop: spacing.xs + 2,
   },
 });

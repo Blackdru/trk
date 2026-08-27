@@ -213,7 +213,7 @@ export function AutopayScreen({ transactions, onRefresh, refreshing, onUpgradePr
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <LinearGradient
-        colors={gradients.success}
+        colors={gradients.primary}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -563,9 +563,9 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
-    ...shadows.md,
+    ...shadows.sm,
   },
   headerContent: {
     flexDirection: 'row',
@@ -578,11 +578,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...typography.headline.small,
     color: colors.text.inverse,
-    marginBottom: spacing.xs,
+    fontWeight: '700',
   },
   headerSubtitle: {
     ...typography.body.small,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginTop: 2,
   },
   searchBar: {
     flexDirection: 'row',

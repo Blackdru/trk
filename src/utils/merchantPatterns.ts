@@ -7,12 +7,16 @@
 export interface MerchantPattern {
   name: string;
   patterns: RegExp[];
-  category: 'subscription' | 'utility' | 'telecom' | 'insurance' | 'loan' | 'other';
+  category: 'subscription' | 'utility' | 'telecom' | 'insurance' | 'loan' | 'investment' | 'other';
   isSubscription: boolean;
 }
 
 export const MERCHANT_PATTERNS: MerchantPattern[] = [
-  // Streaming Services
+  // ═════════════════════════════════════════════════════════════════════
+  // 📱 CONSUMER APP SUBSCRIPTIONS (isSubscription: true)
+  // ═════════════════════════════════════════════════════════════════════
+
+  // Video Streaming & OTT
   {
     name: 'Netflix',
     patterns: [/\bnetflix\b/i],
@@ -62,6 +66,12 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     isSubscription: true,
   },
   {
+    name: 'Apple One',
+    patterns: [/apple\s*one/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
     name: 'Google Play',
     patterns: [/google\s*play/i],
     category: 'subscription',
@@ -73,7 +83,6 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'subscription',
     isSubscription: true,
   },
-  // Music
   {
     name: 'Gaana',
     patterns: [/gaana\s*plus|\bgaana\b/i],
@@ -86,8 +95,12 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'subscription',
     isSubscription: true,
   },
-  
-  // Indian OTT Platforms
+  {
+    name: 'JioSaavn',
+    patterns: [/jio\s*saavn/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
   {
     name: 'Zee5',
     patterns: [/\bzee\s*5|zee5\b/i],
@@ -97,6 +110,12 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
   {
     name: 'SonyLIV',
     patterns: [/sony\s*liv|sonyliv/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'JioCinema',
+    patterns: [/jio\s*cinema/i],
     category: 'subscription',
     isSubscription: true,
   },
@@ -119,26 +138,8 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     isSubscription: true,
   },
   {
-    name: 'Story TV',
-    patterns: [/story\s*tv/i],
-    category: 'subscription',
-    isSubscription: true,
-  },
-  {
-    name: 'Colors',
-    patterns: [/\bcolors\b.*(?:tv|channel|subscription)/i],
-    category: 'subscription',
-    isSubscription: true,
-  },
-  {
-    name: 'Star Plus',
-    patterns: [/star\s*plus/i],
-    category: 'subscription',
-    isSubscription: true,
-  },
-  {
-    name: 'Sun NXT',
-    patterns: [/sun\s*nxt/i],
+    name: 'Alt Balaji',
+    patterns: [/alt\s*balaji/i],
     category: 'subscription',
     isSubscription: true,
   },
@@ -149,25 +150,73 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     isSubscription: true,
   },
   {
-    name: 'Alt Balaji',
-    patterns: [/alt\s*balaji/i],
+    name: 'Sun NXT',
+    patterns: [/sun\s*nxt/i],
     category: 'subscription',
     isSubscription: true,
   },
   {
-    name: 'JioCinema',
-    patterns: [/jio\s*cinema/i],
+    name: 'Aha',
+    patterns: [/\baha\s*(?:video|ott)?\b/i],
     category: 'subscription',
     isSubscription: true,
   },
   {
-    name: 'JioSaavn',
-    patterns: [/jio\s*saavn/i],
+    name: 'Crunchyroll',
+    patterns: [/crunchyroll/i],
     category: 'subscription',
     isSubscription: true,
   },
-  
-  // Cloud Storage & Software
+  {
+    name: 'Lionsgate Play',
+    patterns: [/lionsgate/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Discovery+',
+    patterns: [/discovery\s*\+|discovery\s*plus/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Kuku FM',
+    patterns: [/kuku\s*fm/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Pocket FM',
+    patterns: [/pocket\s*fm/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+
+  // Cloud Storage, AI & Software Apps
+  {
+    name: 'ChatGPT',
+    patterns: [/chatgpt|openai/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Claude',
+    patterns: [/\bclaude\b|anthropic/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Midjourney',
+    patterns: [/midjourney/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Perplexity',
+    patterns: [/perplexity/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
   {
     name: 'Dropbox',
     patterns: [/\bdropbox\b/i],
@@ -210,8 +259,20 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'subscription',
     isSubscription: true,
   },
-  
-  // News & Reading
+  {
+    name: 'Grammarly',
+    patterns: [/grammarly/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'LinkedIn Premium',
+    patterns: [/linkedin/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+
+  // News, Reading & Audiobooks
   {
     name: 'Kindle Unlimited',
     patterns: [/kindle\s*unlimited/i],
@@ -236,8 +297,14 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'subscription',
     isSubscription: true,
   },
-  
-  // Fitness & Health
+  {
+    name: 'The Ken',
+    patterns: [/the\s*ken\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+
+  // Fitness, Health & Lifestyle
   {
     name: 'Cult.fit',
     patterns: [/cult\.?fit|cultfit/i],
@@ -256,8 +323,44 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'subscription',
     isSubscription: true,
   },
-  
-  // Food & Transport
+  {
+    name: 'Strava',
+    patterns: [/\bstrava\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Duolingo',
+    patterns: [/duolingo/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Headspace',
+    patterns: [/headspace/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Calm',
+    patterns: [/\bcalm\s*(?:app|subscription)?\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Tinder',
+    patterns: [/\btinder\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Bumble',
+    patterns: [/\bbumble\b/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+
+  // Food & Delivery App Memberships
   {
     name: 'Swiggy One',
     patterns: [/swiggy\s*one/i],
@@ -270,8 +373,250 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'subscription',
     isSubscription: true,
   },
-  
-  // Utilities (NOT subscriptions)
+  {
+    name: 'Zepto Pass',
+    patterns: [/zepto\s*pass/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Times Prime',
+    patterns: [/times\s*prime/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+
+  // Gaming Subscriptions
+  {
+    name: 'PlayStation Plus',
+    patterns: [/playstation|psn\s*plus|ps\s*plus/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Xbox Game Pass',
+    patterns: [/xbox|game\s*pass/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+  {
+    name: 'Discord Nitro',
+    patterns: [/discord\s*nitro|discord/i],
+    category: 'subscription',
+    isSubscription: true,
+  },
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🔄 LOANS / EMIs / NBFCs / AUTOPAY (isSubscription: false, category: 'loan')
+  // ═════════════════════════════════════════════════════════════════════
+  {
+    name: 'Moneyview',
+    patterns: [/money\s*view|moneyview/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'CreditSea',
+    patterns: [/credit\s*sea|creditsea/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Branch',
+    patterns: [/\bbranch\b/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Navi',
+    patterns: [/\bnavi\b/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'KreditBee',
+    patterns: [/kredit\s*bee|kreditbee|krazybee/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'True Credits',
+    patterns: [/true\s*credits|true\s*balance/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Kissht',
+    patterns: [/\bkissht\b|onemi/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Ring',
+    patterns: [/ring\s*pay|ideafoster|\bring\b.*(?:pay|finance|credit)/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Paysense',
+    patterns: [/paysense/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Fibe',
+    patterns: [/\bfibe\b|early\s*salary/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'mPokket',
+    patterns: [/mpokket|m-pokket/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'CASHe',
+    patterns: [/\bcashe\b/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Stashfin',
+    patterns: [/stashfin/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Pocketly',
+    patterns: [/pocketly/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'PayMe India',
+    patterns: [/payme\s*india|payme/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Slice',
+    patterns: [/\bslice\b.*(?:pay|card|account|loan|credit)|sliceit/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Uni Cards',
+    patterns: [/\buni\b.*(?:card|cards|pay|credit)/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Bajaj Finserv',
+    patterns: [/bajaj\s*finserv|bajaj\s*finance|bajaj/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Tata Capital',
+    patterns: [/tata\s*capital/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Home Credit',
+    patterns: [/home\s*credit/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'L&T Finance',
+    patterns: [/l&t\s*finance|ltfin/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Muthoot Finance',
+    patterns: [/muthoot/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Manappuram',
+    patterns: [/manappuram/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Piramal Finance',
+    patterns: [/piramal/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Aditya Birla Finance',
+    patterns: [/aditya\s*birla\s*capital|abfl/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Cholamandalam',
+    patterns: [/chola|cholamandalam/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Shriram Finance',
+    patterns: [/shriram/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Hero Fincorp',
+    patterns: [/hero\s*fincorp/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'TVS Credit',
+    patterns: [/tvs\s*credit/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Dhani',
+    patterns: [/\bdhani\b/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Home Loan',
+    patterns: [/home\s*loan/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Car Loan',
+    patterns: [/car\s*loan|vehicle\s*loan/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Personal Loan',
+    patterns: [/personal\s*loan/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+  {
+    name: 'Credit Card',
+    patterns: [/credit\s*card/i],
+    category: 'loan',
+    isSubscription: false,
+  },
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ⚡ UTILITIES & BILLS (isSubscription: false, category: 'utility')
+  // ═════════════════════════════════════════════════════════════════════
   {
     name: 'BESCOM',
     patterns: [/\bbescom\b/i],
@@ -285,13 +630,27 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     isSubscription: false,
   },
   {
+    name: 'Adani Electricity',
+    patterns: [/adani\s*(?:electricity|power|gas)/i],
+    category: 'utility',
+    isSubscription: false,
+  },
+  {
     name: 'Indane Gas',
     patterns: [/indane\s*gas|indane/i],
     category: 'utility',
     isSubscription: false,
   },
-  
-  // Telecom (NOT subscriptions)
+  {
+    name: 'Mahanagar Gas',
+    patterns: [/mahanagar\s*gas|mgl/i],
+    category: 'utility',
+    isSubscription: false,
+  },
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 📶 TELECOM & BROADBAND (isSubscription: false, category: 'telecom')
+  // ═════════════════════════════════════════════════════════════════════
   {
     name: 'Jio Fiber',
     patterns: [/jio\s*fiber/i],
@@ -322,8 +681,16 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
     category: 'telecom',
     isSubscription: false,
   },
-  
-  // Insurance (NOT subscriptions)
+  {
+    name: 'Tata Play',
+    patterns: [/tata\s*play|tata\s*sky/i],
+    category: 'telecom',
+    isSubscription: false,
+  },
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🛡️ INSURANCE (isSubscription: false, category: 'insurance')
+  // ═════════════════════════════════════════════════════════════════════
   {
     name: 'LIC',
     patterns: [/\blic\b.*(?:insurance|premium|policy)/i],
@@ -332,50 +699,66 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
   },
   {
     name: 'HDFC Life',
-    patterns: [/hdfc\s*life/i],
+    patterns: [/hdfc\s*life|hdfc\s*ergo/i],
     category: 'insurance',
     isSubscription: false,
   },
   {
     name: 'ICICI Prudential',
-    patterns: [/icici\s*prudential/i],
+    patterns: [/icici\s*prudential|icici\s*pru|icici\s*lombard/i],
     category: 'insurance',
     isSubscription: false,
   },
-  
-  // Loans (NOT subscriptions)
   {
-    name: 'Home Loan',
-    patterns: [/home\s*loan/i],
-    category: 'loan',
+    name: 'SBI Life',
+    patterns: [/sbi\s*life/i],
+    category: 'insurance',
     isSubscription: false,
   },
   {
-    name: 'Car Loan',
-    patterns: [/car\s*loan|vehicle\s*loan/i],
-    category: 'loan',
+    name: 'Max Life',
+    patterns: [/max\s*life/i],
+    category: 'insurance',
     isSubscription: false,
   },
   {
-    name: 'Personal Loan',
-    patterns: [/personal\s*loan/i],
-    category: 'loan',
+    name: 'Star Health',
+    patterns: [/star\s*health/i],
+    category: 'insurance',
+    isSubscription: false,
+  },
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 📈 INVESTMENTS & SIPS (isSubscription: false, category: 'investment')
+  // ═════════════════════════════════════════════════════════════════════
+  {
+    name: 'Zerodha',
+    patterns: [/\bzerodha\b/i],
+    category: 'investment',
     isSubscription: false,
   },
   {
-    name: 'Credit Card',
-    patterns: [/credit\s*card/i],
-    category: 'loan',
+    name: 'Groww',
+    patterns: [/\bgroww\b/i],
+    category: 'investment',
     isSubscription: false,
   },
   {
-    name: 'L&T Finance',
-    patterns: [/l&t\s*finance|ltfin/i],
-    category: 'loan',
+    name: 'Upstox',
+    patterns: [/\bupstox\b/i],
+    category: 'investment',
     isSubscription: false,
   },
-  
-  // Business Services (NOT subscriptions for consumer app)
+  {
+    name: 'Mutual Fund SIP',
+    patterns: [/mutual\s*fund|sip\s*(?:debit|payment|mandate)/i],
+    category: 'investment',
+    isSubscription: false,
+  },
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🏢 CLOUD / BUSINESS (isSubscription: false, category: 'other')
+  // ═════════════════════════════════════════════════════════════════════
   {
     name: 'AWS India',
     patterns: [/\baws\b|aws\s*india|amazon\s*web\s*services/i],
@@ -394,6 +777,7 @@ export const MERCHANT_PATTERNS: MerchantPattern[] = [
  * Find matching merchant pattern
  */
 export function findMerchantPattern(text: string): MerchantPattern | null {
+  if (!text) return null;
   for (const pattern of MERCHANT_PATTERNS) {
     for (const regex of pattern.patterns) {
       if (regex.test(text)) {
@@ -401,14 +785,14 @@ export function findMerchantPattern(text: string): MerchantPattern | null {
       }
     }
   }
-  
   return null;
 }
 
 /**
- * Check if merchant is a known subscription service
+ * Check if merchant is a known digital app subscription service (strictly consumer apps)
  */
 export function isKnownSubscriptionService(merchantName: string, smsBody?: string): boolean {
+  if (!merchantName) return false;
   const pattern = findMerchantPattern(merchantName);
   
   if (pattern) {
@@ -431,16 +815,11 @@ export function isKnownSubscriptionService(merchantName: string, smsBody?: strin
  */
 export function getStandardizedMerchantName(merchantName: string, smsBody?: string): string {
   const pattern = findMerchantPattern(merchantName) || (smsBody ? findMerchantPattern(smsBody) : null);
-  
   return pattern ? pattern.name : merchantName;
 }
 
-// ─── Derived helpers (single source of truth for all other files) ────────────
+// ─── Derived helpers ─────────────────────────────────────────────────────────
 
-/**
- * Build a special-services map for smsParser's extractMerchantName.
- * Returns an array of { pattern, name } derived from MERCHANT_PATTERNS.
- */
 let _specialServiceCache: Array<{ pattern: RegExp; name: string }> | null = null;
 
 export function getSpecialServiceMap(): Array<{ pattern: RegExp; name: string }> {
@@ -455,10 +834,6 @@ export function getSpecialServiceMap(): Array<{ pattern: RegExp; name: string }>
   return _specialServiceCache;
 }
 
-/**
- * Build the set of lowercase service names for smsClassifier's isKnownService.
- * Includes component words (e.g. "amazon" from "Amazon Prime") for substring matching.
- */
 let _knownNamesCache: string[] | null = null;
 
 export function getKnownServiceNames(): string[] {
@@ -467,7 +842,6 @@ export function getKnownServiceNames(): string[] {
   const names = new Set<string>();
   for (const mp of MERCHANT_PATTERNS) {
     names.add(mp.name.toLowerCase());
-    // Add individual lowercase words ≥3 chars for substring matching
     for (const word of mp.name.toLowerCase().split(/\s+/)) {
       if (word.length >= 3) names.add(word);
     }
@@ -476,10 +850,6 @@ export function getKnownServiceNames(): string[] {
   return _knownNamesCache;
 }
 
-/**
- * Build regex list for isKnownServiceInBody (smsClassifier catch-all).
- * Derived from subscription-type MERCHANT_PATTERNS only.
- */
 let _bodyPatternsCache: RegExp[] | null = null;
 
 export function getKnownServiceBodyPatterns(): RegExp[] {

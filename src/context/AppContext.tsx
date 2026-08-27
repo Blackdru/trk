@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import type { Subscription, AutopayTransaction, AppSettings } from '../types';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import type { Subscription, AutopayTransaction, AppSettings, PassbookTransaction } from '../types';
 import {
   getSubscriptions as getStoredSubscriptions,
   saveSubscriptions as saveStoredSubscriptions,
@@ -7,12 +7,17 @@ import {
   saveAutopayTransactions as saveStoredAutopay,
   getSettings as getStoredSettings,
   saveSettings as saveStoredSettings,
+  getPassbookTransactions as getStoredPassbook,
+  savePassbookTransactions as saveStoredPassbook,
+  addPassbookTransaction as addStoredPassbook,
+  clearPassbookTransactions as clearStoredPassbook,
 } from '../storage';
 
 interface AppContextType {
   // State
   subscriptions: Subscription[];
   autopayTransactions: AutopayTransaction[];
+  passbookTransactions: PassbookTransaction[];
   settings: AppSettings;
   isPro: boolean;
   hasSmsPermission: boolean;
@@ -26,6 +31,10 @@ interface AppContextType {
   setAutopayTransactions: (txns: AutopayTransaction[]) => void;
   addAutopayTransaction: (txn: AutopayTransaction) => void;
   deleteAutopayTransaction: (id: string) => void;
+
+  setPassbookTransactions: (txns: PassbookTransaction[]) => void;
+  addPassbookTransaction: (txn: PassbookTransaction) => void;
+  clearPassbookTransactions: () => void;
   
   updateSettings: (settings: Partial<AppSettings>) => void;
   setIsPro: (isPro: boolean) => void;
@@ -37,6 +46,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [subscriptions, setSubscriptionsState] = useState<Subscription[]>([]);
   const [autopayTransactions, setAutopayState] = useState<AutopayTransaction[]>([]);
+  const [passbookTransactions, setPassbookState] = useState<PassbookTransaction[]>(() => getStoredPassbook());
   const [settings, setSettingsState] = useState<AppSettings>(getStoredSettings());
   const [isPro, setIsPro] = useState(false);
   const [hasSmsPermission, setHasSmsPermission] = useState(false);
@@ -90,6 +100,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return updated;
     });
   }, []);
+
+  const setPassbookTransactions = useCallback((txns: PassbookTransaction[]) => {
+    setPassbookState(txns);
+    saveStoredPassbook(txns);
+  }, []);
+
+  const addPassbookTransaction = useCallback((txn: PassbookTransaction) => {
+    setPassbookState(prev => {
+      const exists = prev.some(t => t.id === txn.id || (t.referenceNumber && t.referenceNumber === txn.referenceNumber));
+      if (exists) return prev;
+      // Prune entries older than 30 days while adding
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const pruned = prev.filter(t => t.date >= cutoff);
+      const updated = [txn, ...pruned].sort((a, b) => b.date - a.date);
+      saveStoredPassbook(updated);
+      return updated;
+    });
+  }, []);
+
+  const clearPassbookTransactions = useCallback(() => {
+    setPassbookState([]);
+    clearStoredPassbook();
+  }, []);
   
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
     setSettingsState(prev => {
@@ -102,6 +135,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppContextType = {
     subscriptions,
     autopayTransactions,
+    passbookTransactions,
     settings,
     isPro,
     hasSmsPermission,
@@ -112,6 +146,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAutopayTransactions,
     addAutopayTransaction,
     deleteAutopayTransaction,
+    setPassbookTransactions,
+    addPassbookTransaction,
+    clearPassbookTransactions,
     updateSettings,
     setIsPro,
     setHasSmsPermission,
@@ -127,3 +164,4 @@ export function useAppContext() {
   }
   return context;
 }
+

@@ -31,6 +31,7 @@ export interface Subscription {
   notificationEnabled: boolean;
   transactions?: ParsedTransaction[];
   paymentApp?: string; // App used for payment (e.g., 'phonepe', 'gpay', 'paytm', 'playstore', etc.)
+  category?: string; // e.g., 'Entertainment', 'Productivity', etc.
 }
 
 export interface AutopayTransaction {
@@ -55,3 +56,23 @@ export interface AppSettings {
   alarmTimeBeforeDue: number; // Hour (0-23) for alarms 1-2 days before due date (default: 8)
   alarmTimeOnDueDate: number; // Hour (0-23) for alarm on payment due date (default: 6)
 }
+
+export type TransactionType = 'debit' | 'credit';
+
+export interface PassbookTransaction {
+  id: string;
+  type: TransactionType;
+  amount: number;
+  currency: string; // e.g., '₹', '$', '€', '£', 'AED', etc. (defaults to '₹')
+  date: number;
+  merchantName: string;
+  accountNumber?: string;
+  bankName?: string;
+  referenceNumber?: string;
+  balance?: number;
+  category?: string;
+  rawSms: string;
+}
+
+
+
