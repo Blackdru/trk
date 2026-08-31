@@ -88,58 +88,46 @@ export function calculateNextAutopayDate(
 }
 
 /**
- * Enrich autopay transactions with billing cycle and next payment date
+ * Enrich autopay transactions with billing cycle and next payment date,
+ * consolidating multiple SMS entries for the same merchant into a single active mandate.
  */
 export function enrichAutopayWithCycles(
   transactions: AutopayTransaction[]
 ): AutopayTransaction[] {
   console.log(`[AutopayTracker] Enriching ${transactions.length} autopay transactions`);
   
-  // Group by merchant
+  // Group by merchant name (case-insensitive)
   const byMerchant = new Map<string, AutopayTransaction[]>();
   
   transactions.forEach(txn => {
-    const existing = byMerchant.get(txn.merchantName) || [];
+    const key = txn.merchantName.toLowerCase().trim();
+    const existing = byMerchant.get(key) || [];
     existing.push(txn);
-    byMerchant.set(txn.merchantName, existing);
+    byMerchant.set(key, existing);
   });
 
-  // Enrich each transaction
-  const enriched = transactions.map(txn => {
-    const merchantTxns = byMerchant.get(txn.merchantName) || [];
-    const cycle = detectAutopayCycle(txn.merchantName, merchantTxns);
-    
-    console.log(`[AutopayTracker] ${txn.merchantName}: ${merchantTxns.length} txns, cycle: ${cycle}`);
-    
-    if (!cycle) {
-      return { ...txn, notificationEnabled: true };
-    }
+  const enriched: AutopayTransaction[] = [];
 
+  byMerchant.forEach((merchantTxns, key) => {
+    const cycle = detectAutopayCycle(merchantTxns[0].merchantName, merchantTxns) || 'monthly';
+    
     // Find the most recent transaction for this merchant
     const mostRecent = merchantTxns.reduce((latest, current) => 
       current.date > latest.date ? current : latest
     );
 
-    // Only set next payment date for the most recent transaction
-    if (txn.id === mostRecent.id) {
-      const nextPaymentDate = calculateNextAutopayDate(txn.date, cycle);
-      console.log(`[AutopayTracker] ${txn.merchantName} (most recent): next payment ${dayjs(nextPaymentDate).format('YYYY-MM-DD')}`);
-      return {
-        ...txn,
-        billingCycle: cycle,
-        nextPaymentDate,
-        notificationEnabled: true,
-      };
-    }
+    const nextPaymentDate = calculateNextAutopayDate(mostRecent.date, cycle);
+    console.log(`[AutopayTracker] ${mostRecent.merchantName} (${merchantTxns.length} txns): next payment ${dayjs(nextPaymentDate).format('YYYY-MM-DD')}`);
 
-    return {
-      ...txn,
+    enriched.push({
+      ...mostRecent,
       billingCycle: cycle,
+      nextPaymentDate,
       notificationEnabled: true,
-    };
+    });
   });
   
-  console.log(`[AutopayTracker] Enriched ${enriched.filter(t => t.nextPaymentDate).length} transactions with nextPaymentDate`);
+  console.log(`[AutopayTracker] Enriched ${enriched.length} unique merchant mandates`);
   return enriched;
 }
 

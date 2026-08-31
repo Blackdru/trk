@@ -5,6 +5,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import dayjs from 'dayjs';
 import type { Subscription, AutopayTransaction } from '../types';
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { getSubscriptionTier } from '../services/subscriptionService';
 
 interface Payment {
   id: string;
@@ -23,16 +24,19 @@ interface Props {
 }
 
 export function SmartPaymentAlert({ subscriptions, autopayTransactions, onDismiss, onViewDetails }: Props) {
-  // Collect all upcoming payments
+  const tier = getSubscriptionTier();
+  
+  // Eligible subscriptions and autopay transactions according to free limits
+  // Collect upcoming payments within next 3 days
   const now = Date.now();
   const threeDaysLater = dayjs().add(3, 'day').valueOf();
   
-  const payments: Payment[] = [];
+  const allPotentialPayments: Payment[] = [];
 
   // Add subscriptions
   subscriptions.forEach(sub => {
     if (sub.nextRenewalDate >= now && sub.nextRenewalDate <= threeDaysLater) {
-      payments.push({
+      allPotentialPayments.push({
         id: sub.id,
         merchantName: sub.merchantName,
         amount: sub.amount,
@@ -45,7 +49,7 @@ export function SmartPaymentAlert({ subscriptions, autopayTransactions, onDismis
   // Add autopay
   autopayTransactions.forEach(autopay => {
     if (autopay.nextPaymentDate && autopay.nextPaymentDate >= now && autopay.nextPaymentDate <= threeDaysLater) {
-      payments.push({
+      allPotentialPayments.push({
         id: autopay.id,
         merchantName: autopay.merchantName,
         amount: autopay.amount,
@@ -57,7 +61,10 @@ export function SmartPaymentAlert({ subscriptions, autopayTransactions, onDismis
   });
 
   // Sort by due date
-  payments.sort((a, b) => a.dueDate - b.dueDate);
+  allPotentialPayments.sort((a, b) => a.dueDate - b.dueDate);
+
+  const totalPotentialPaymentsCount = allPotentialPayments.length;
+  const payments = tier.isPro ? allPotentialPayments : allPotentialPayments.slice(0, 3);
 
   // Group by day
   const today = dayjs().startOf('day');
@@ -88,7 +95,9 @@ export function SmartPaymentAlert({ subscriptions, autopayTransactions, onDismis
             <View>
               <Text style={styles.headerTitle}>Upcoming Payments</Text>
               <Text style={styles.headerSubtitle}>
-                {payments.length} payment{payments.length > 1 ? 's' : ''} • ₹{totalAmount}
+                {!tier.isPro && totalPotentialPaymentsCount > payments.length
+                  ? `${payments.length} of ${totalPotentialPaymentsCount} due (Free Plan) • ₹${totalAmount}`
+                  : `${payments.length} payment${payments.length > 1 ? 's' : ''} • ₹${totalAmount}`}
               </Text>
             </View>
           </View>

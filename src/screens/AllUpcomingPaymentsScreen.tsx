@@ -11,9 +11,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import Icon from 'react-native-vector-icons/Feather';
 import LinearGradient from 'react-native-linear-gradient';
+import RevenueCatUI from 'react-native-purchases-ui';
 import type { Subscription, AutopayTransaction } from '../types';
 import { SubscriptionLogo } from '../components/SubscriptionLogo';
 import { colors, typography, spacing, borderRadius, shadows, gradients } from '../theme';
+import { getSubscriptionTier } from '../services/subscriptionService';
 
 interface UpcomingItem {
   id: string;
@@ -31,6 +33,7 @@ interface Props {
   onClose: () => void;
   onMarkSubscriptionPaid: (id: string) => void;
   onMarkAutopayPaid: (id: string) => void;
+  onUpgradePress?: () => void;
 }
 
 const DAYS_AHEAD = 30;
@@ -41,17 +44,29 @@ export function AllUpcomingPaymentsScreen({
   onClose,
   onMarkSubscriptionPaid,
   onMarkAutopayPaid,
+  onUpgradePress,
 }: Props) {
   const [paidIds, setPaidIds] = useState<Set<string>>(new Set());
+  const tier = getSubscriptionTier();
 
-  const allUpcoming = useMemo(() => {
+  const handleUpgrade = () => {
+    if (onUpgradePress) {
+      onUpgradePress();
+    } else {
+      RevenueCatUI.presentPaywall().catch(err => console.warn(err));
+    }
+  };
+
+  // Calculate total potential upcoming payments (all items)
+  const { allUpcoming, totalPotentialCount } = useMemo(() => {
     const now = Date.now();
     const cutoff = dayjs().add(DAYS_AHEAD, 'day').valueOf();
-    const items: UpcomingItem[] = [];
+
+    const allPotentialItems: UpcomingItem[] = [];
 
     subscriptions.forEach(sub => {
-      if (sub.nextRenewalDate >= now && sub.nextRenewalDate <= cutoff) {
-        items.push({
+      if (sub.nextRenewalDate >= now && sub.nextRenewalDate <= cutoff && !paidIds.has(sub.id)) {
+        allPotentialItems.push({
           id: sub.id,
           merchantName: sub.merchantName,
           amount: sub.amount,
@@ -63,8 +78,8 @@ export function AllUpcomingPaymentsScreen({
     });
 
     autopayTransactions.forEach(ap => {
-      if (ap.nextPaymentDate && ap.nextPaymentDate >= now && ap.nextPaymentDate <= cutoff) {
-        items.push({
+      if (ap.nextPaymentDate && ap.nextPaymentDate >= now && ap.nextPaymentDate <= cutoff && !paidIds.has(ap.id)) {
+        allPotentialItems.push({
           id: ap.id,
           merchantName: ap.merchantName,
           amount: ap.amount,
@@ -75,10 +90,16 @@ export function AllUpcomingPaymentsScreen({
       }
     });
 
-    return items
-      .filter(item => !paidIds.has(item.id))
-      .sort((a, b) => a.dueDate - b.dueDate);
-  }, [subscriptions, autopayTransactions, paidIds]);
+    const sorted = allPotentialItems.sort((a, b) => a.dueDate - b.dueDate);
+    const displayed = tier.isPro ? sorted : sorted.slice(0, 3);
+
+    return {
+      allUpcoming: displayed,
+      totalPotentialCount: sorted.length,
+    };
+  }, [subscriptions, autopayTransactions, paidIds, tier.isPro]);
+
+  const isLimitReached = !tier.isPro && totalPotentialCount > allUpcoming.length;
 
   const grouped = useMemo(() => {
     const today = dayjs().startOf('day');
@@ -181,7 +202,9 @@ export function AllUpcomingPaymentsScreen({
           <View style={styles.headerTextBlock}>
             <Text style={styles.headerTitle}>Upcoming Payments</Text>
             <Text style={styles.headerSubtitle}>
-              {allUpcoming.length} payment{allUpcoming.length !== 1 ? 's' : ''} · ₹{Math.round(totalAmount)}
+              {!tier.isPro && totalPotentialCount > allUpcoming.length
+                ? `Showing ${allUpcoming.length} of ${totalPotentialCount} · ₹${Math.round(totalAmount)}`
+                : `${allUpcoming.length} payment${allUpcoming.length !== 1 ? 's' : ''} · ₹${Math.round(totalAmount)}`}
             </Text>
           </View>
         </View>
@@ -192,6 +215,42 @@ export function AllUpcomingPaymentsScreen({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Free Plan Limit Banner */}
+        {isLimitReached && (
+          <View style={styles.limitBannerWrapper}>
+            <View style={styles.limitBannerCard}>
+              <View style={styles.limitBannerHeader}>
+                <View style={styles.limitIconBadge}>
+                  <Icon name="lock" size={16} color={colors.warning[700]} />
+                </View>
+                <View style={styles.limitBannerTextContainer}>
+                  <Text style={styles.limitBannerTitle}>
+                    Showing {allUpcoming.length} of {totalPotentialCount} upcoming payments
+                  </Text>
+                  <Text style={styles.limitBannerSub}>
+                    Free plan displays up to 3 upcoming payments. Upgrade to Pro for unlimited payment tracking and reminders.
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.upgradeBtn}
+                onPress={handleUpgrade}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={gradients.primary}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.upgradeBtnGradient}
+                >
+                  <Icon name="zap" size={14} color={colors.text.inverse} />
+                  <Text style={styles.upgradeBtnText}>Upgrade to Pro</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {allUpcoming.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
@@ -311,6 +370,65 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     paddingBottom: spacing.xxxl,
   },
+  limitBannerWrapper: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  limitBannerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.warning[300],
+    ...shadows.sm,
+  },
+  limitBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  limitIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.warning[100],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  limitBannerTextContainer: {
+    flex: 1,
+  },
+  limitBannerTitle: {
+    ...typography.title.small,
+    color: colors.text.primary,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  limitBannerSub: {
+    ...typography.body.small,
+    color: colors.text.secondary,
+    lineHeight: 18,
+  },
+  upgradeBtn: {
+    borderRadius: borderRadius.md,
+    overflow: 'hidden',
+    marginTop: spacing.xs,
+  },
+  upgradeBtnGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  upgradeBtnText: {
+    ...typography.label.medium,
+    color: colors.text.inverse,
+    fontWeight: '700',
+  },
   group: {
     paddingHorizontal: spacing.lg,
     marginBottom: spacing.lg,
@@ -328,11 +446,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 5,
     borderRadius: borderRadius.sm,
+    flexShrink: 0,
   },
   groupLabel: {
     ...typography.label.small,
     fontWeight: '700',
     fontSize: 12,
+    flexShrink: 0,
   },
   groupTotal: {
     ...typography.title.small,
@@ -453,3 +573,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

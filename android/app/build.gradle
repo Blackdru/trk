@@ -88,8 +88,8 @@ android {
         applicationId "com.budrock.upitracker"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 32
-        versionName "3.2"
+        versionCode 35
+        versionName "3.5"
     }
     signingConfigs {
         debug {

@@ -1,6 +1,7 @@
 import notifee, { AndroidImportance, TriggerType, TimestampTrigger } from '@notifee/react-native';
 import dayjs from 'dayjs';
 import type { Subscription } from '../types';
+import { getSubscriptionTier } from '../services/subscriptionService';
 
 const CHANNEL_ID = 'upi-subscription-reminders';
 
@@ -128,8 +129,11 @@ export async function scheduleAllNotifications(subscriptions: Subscription[]): P
   // Cancel all existing
   await notifee.cancelAllNotifications();
 
+  const tier = getSubscriptionTier();
+  const activeSubs = tier.isPro ? subscriptions : subscriptions.slice(0, tier.maxSubscriptions);
+
   // Schedule new ones
-  for (const sub of subscriptions) {
+  for (const sub of activeSubs) {
     await scheduleRenewalNotification(sub);
   }
 }

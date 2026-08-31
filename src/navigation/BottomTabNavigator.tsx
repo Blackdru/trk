@@ -136,6 +136,7 @@ export function BottomTabNavigator({
               onDismissRenewalAlert={onDismissRenewalAlert}
               onMarkSubscriptionPaid={onMarkSubscriptionPaid}
               onMarkAutopayPaid={onMarkAutopayPaid}
+              onUpgradePress={onUpgradePress}
             />
           )}
         </Tab.Screen>

@@ -18,15 +18,8 @@ import java.util.Calendar
 /**
  * Native Android module for reading SMS messages.
  *
- * PRIVACY NOTICE: This module reads SMS ONLY to detect UPI subscription payments.
+ * PRIVACY NOTICE: This module reads SMS ONLY to detect UPI subscription payments and passbook transactions.
  * All processing happens locally on the device. No SMS data is transmitted externally.
- *
- * We filter SMS early using UPI-related keywords to minimise data exposure.
- *
- * Live SMS delivery mechanism:
- *   SmsReceiver (system BroadcastReceiver) → LocalBroadcastManager → SmsModule → JS EventEmitter
- *   This ensures live delivery regardless of whether SmsReceiver was instantiated before or after
- *   SmsModule, and survives app restarts without a stale static reference.
  */
 class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
@@ -35,7 +28,6 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
         const val EVENT_SMS_RECEIVED = "onSmsReceived"
 
         // Keywords for early filtering — cast a WIDE net, JS classifier will filter precisely
-        // Being too strict here silently drops SMS before the JS layer ever sees them
         val UPI_KEYWORDS = listOf(
             // Core autopay/mandate keywords
             "autopay", "auto-pay", "auto pay", "mandate", "e-mandate", "emandate",
@@ -44,8 +36,8 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
             // Temporal/billing keywords
             "monthly", "yearly", "quarterly", "weekly", "annual", "per month",
             // Transaction keywords
-            "debited", "debit", "emi", "payment", "charged", "charge",
-            "billed", "billing", "premium", "installment",
+            "debited", "debit", "credited", "credit", "trf", "transfer", "emi", "payment", "charged", "charge",
+            "billed", "billing", "premium", "installment", "refno", "reversal", "refund", "receipt",
             // Status keywords
             "renewed", "renewal", "executed", "processed",
             // Due/scheduled keywords
@@ -91,7 +83,7 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     override fun getName(): String = NAME
 
     /**
-     * Unregister local receiver when the module is invalidated (e.g. app reload / hot reload)
+     * Unregister local receiver when the module is invalidated
      */
     override fun invalidate() {
         super.invalidate()
@@ -120,10 +112,8 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
     }
 
     /**
-     * Read SMS messages from inbox (last 6 months).
+     * Read SMS messages from inbox.
      * Only returns SMS containing UPI-related keywords to protect privacy.
-     *
-     * @return Array of SMS objects with body, date, and address fields
      */
     @ReactMethod
     fun getSms(promise: Promise) {
@@ -145,8 +135,7 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
             val smsArray = Arguments.createArray()
             val uri = Uri.parse("content://sms/inbox")
 
-            // Calculate timestamp for 180 days ago (6 months)
-            // Need longer history to detect quarterly/yearly subscriptions
+            // Scan last 180 days (6 months)
             val sixMonthsAgo = Calendar.getInstance().apply {
                 add(Calendar.DAY_OF_MONTH, -180)
             }.timeInMillis
@@ -174,7 +163,6 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
                     val address = it.getString(addressIndex) ?: ""
 
                     // Early filtering: Only include SMS with UPI-related keywords
-                    // This protects user privacy by not exposing unrelated SMS
                     if (containsUpiKeyword(body)) {
                         matchedCount++
                         val smsMap = Arguments.createMap().apply {
@@ -216,7 +204,6 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
     /**
      * Clear the incremental-sync hash cache so all SMS are re-processed on next sync.
-     * Useful for debugging or after the user resets subscription data.
      */
     @ReactMethod
     fun clearSyncCache(promise: Promise) {
@@ -230,7 +217,6 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
 
     /**
      * Check if SMS body contains any UPI-related keywords.
-     * Case-insensitive matching for better detection.
      */
     private fun containsUpiKeyword(body: String): Boolean {
         val lowerBody = body.lowercase()
@@ -246,9 +232,6 @@ class SmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaMod
             .emit(EVENT_SMS_RECEIVED, smsData)
     }
 
-    /**
-     * Required for NativeEventEmitter in JS
-     */
     @ReactMethod
     fun addListener(eventName: String) {
         // Keep: Required for RN built-in Event Emitter

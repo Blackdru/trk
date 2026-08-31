@@ -154,6 +154,71 @@ export function classifySms(features: SmsFeatures, body?: string): Classificatio
     };
   }
 
+  // High Priority: Explicit Indian Bank & Fintech Mandate / Autopay Patterns
+  if (body && /automatic\s+payment\s+of\s+.*?\s+has\s+been\s+setup/i.test(body)) {
+    return {
+      type: 'autopay',
+      confidence: 0.98,
+      reason: 'Automatic payment setup confirmation'
+    };
+  }
+
+  if (body && /upi-mandate\s+for\s+.*?\s+is\s+successfully\s+created/i.test(body)) {
+    return {
+      type: 'mandate',
+      confidence: 0.98,
+      reason: 'UPI Mandate creation confirmation'
+    };
+  }
+
+  if (body && /subscription\s+request\s+for\s+.*?\s+is\s+successful/i.test(body)) {
+    return {
+      type: 'subscription',
+      confidence: 0.95,
+      reason: 'Subscription request successful'
+    };
+  }
+
+  if (body && /recurring\s+payment\s+request\s+with\s+.*?\s+amounting\s+to/i.test(body)) {
+    return {
+      type: 'autopay',
+      confidence: 0.95,
+      reason: 'Recurring payment request initiated'
+    };
+  }
+
+  if (body && /loan\s*emi\s+rs.*?is\s+received.*?successfully/i.test(body)) {
+    return {
+      type: 'emi',
+      confidence: 0.95,
+      reason: 'Loan EMI payment received'
+    };
+  }
+
+  if (body && /repaying\s+rs.*?installment\s+has\s+been\s+successfully\s+settled/i.test(body)) {
+    return {
+      type: 'emi',
+      confidence: 0.95,
+      reason: 'Loan installment settled'
+    };
+  }
+
+  if (body && /recharge\s+of\s+inr.*?is\s+successful\s+for\s+your.*?mobile/i.test(body)) {
+    return {
+      type: 'subscription',
+      confidence: 0.85,
+      reason: 'Recurring mobile pack recharge'
+    };
+  }
+
+  if (body && /overdue\s+loan\s+of\s+(?:inr|rs\.?|₹).*?please\s+pay\s+by/i.test(body)) {
+    return {
+      type: 'emi',
+      confidence: 0.90,
+      reason: 'Loan overdue payment demand with date'
+    };
+  }
+
   // Rule 1: Strong mandate/autopay indicators
   if (features.hasMandateKeyword && features.hasSuccessIndicator && !features.merchantLooksLikePerson) {
     return {

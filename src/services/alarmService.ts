@@ -2,6 +2,7 @@ import { AppState, Alert, Platform } from 'react-native';
 import dayjs from 'dayjs';
 import type { Subscription, AutopayTransaction } from '../types';
 import { getStorage } from '../storage';
+import { getSubscriptionTier } from './subscriptionService';
 import { 
   scheduleAlarm as scheduleNativeAlarm, 
   cancelAlarm as cancelNativeAlarm,
@@ -86,8 +87,12 @@ export async function schedulePaymentAlarms(
   alarmTimeBeforeDue: number = 8, // Default 8 AM
   alarmTimeOnDueDate: number = 6  // Default 6 AM
 ): Promise<void> {
+  const tier = getSubscriptionTier();
+  const activeSubs = tier.isPro ? subscriptions : subscriptions.slice(0, tier.maxSubscriptions);
+  const activeAutopay = tier.isPro ? autopayTransactions : autopayTransactions.slice(0, tier.maxAutopay);
+
   console.log('[AlarmService] Starting alarm scheduling...');
-  console.log(`[AlarmService] Subscriptions: ${subscriptions.length}, Autopay: ${autopayTransactions.length}`);
+  console.log(`[AlarmService] Subscriptions: ${activeSubs.length}/${subscriptions.length}, Autopay: ${activeAutopay.length}/${autopayTransactions.length} (isPro: ${tier.isPro})`);
   console.log(`[AlarmService] Alarm times: ${alarmTimeBeforeDue}:00 (before), ${alarmTimeOnDueDate}:00 (due date)`);
   
   // Check if we have permission to schedule exact alarms (Android 12+)
@@ -131,7 +136,7 @@ export async function schedulePaymentAlarms(
   console.log(`[AlarmService] Current time: ${dayjs(now).format('YYYY-MM-DD HH:mm:ss')}`);
 
   // Process subscriptions
-  subscriptions.forEach(sub => {
+  activeSubs.forEach(sub => {
     const dueDate = dayjs(sub.nextRenewalDate);
     
     console.log(`[AlarmService] Processing subscription: ${sub.merchantName}, due: ${dueDate.format('YYYY-MM-DD')}`);
@@ -197,7 +202,7 @@ export async function schedulePaymentAlarms(
   });
 
   // Process autopay
-  autopayTransactions.forEach(autopay => {
+  activeAutopay.forEach(autopay => {
     if (!autopay.nextPaymentDate) return;
     
     const dueDate = dayjs(autopay.nextPaymentDate);

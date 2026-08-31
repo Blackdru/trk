@@ -39,6 +39,7 @@ interface Props {
   onDismissRenewalAlert: () => void;
   onMarkSubscriptionPaid: (id: string) => void;
   onMarkAutopayPaid: (id: string) => void;
+  onUpgradePress?: () => void;
 }
 
 export function DashboardScreen({
@@ -51,6 +52,7 @@ export function DashboardScreen({
   onDismissRenewalAlert,
   onMarkSubscriptionPaid,
   onMarkAutopayPaid,
+  onUpgradePress,
 }: Props) {
   const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const tier = getSubscriptionTier();
@@ -354,6 +356,7 @@ export function DashboardScreen({
           onClose={() => setShowAllUpcoming(false)}
           onMarkSubscriptionPaid={onMarkSubscriptionPaid}
           onMarkAutopayPaid={onMarkAutopayPaid}
+          onUpgradePress={onUpgradePress}
         />
       </Modal>
     </SafeAreaView>

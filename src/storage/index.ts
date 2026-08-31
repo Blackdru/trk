@@ -243,15 +243,15 @@ export function setWelcomeCompleted(): void {
   getStorage().set(KEYS.WELCOME_COMPLETED, true);
 }
 
-// Passbook / All Transactions (30-day rolling window)
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+// Passbook / All Transactions (90-day rolling window)
+const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
 export function getPassbookTransactions(): PassbookTransaction[] {
   const data = getStorage().getString(KEYS.PASSBOOK_TRANSACTIONS);
   if (!data) return [];
   try {
     const list: PassbookTransaction[] = JSON.parse(data);
-    const cutoff = Date.now() - THIRTY_DAYS_MS;
+    const cutoff = Date.now() - NINETY_DAYS_MS;
     const { isNonTransactional } = require('../utils/passbookParser');
     let hasChanges = false;
     const valid = list.filter(t => {
@@ -275,7 +275,7 @@ export function getPassbookTransactions(): PassbookTransaction[] {
 }
 
 export function savePassbookTransactions(transactions: PassbookTransaction[]): void {
-  const cutoff = Date.now() - THIRTY_DAYS_MS;
+  const cutoff = Date.now() - NINETY_DAYS_MS;
   const valid = transactions.filter(t => t.date >= cutoff);
   getStorage().set(KEYS.PASSBOOK_TRANSACTIONS, JSON.stringify(valid));
 }

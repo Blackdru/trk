@@ -22,6 +22,7 @@ import { enrichAutopayWithCycles } from './src/utils/autopayTracker';
 import {
   getSubscriptions,
   getAutopayTransactions,
+  getPassbookTransactions,
   hasCompletedWelcome,
   setWelcomeCompleted,
   deleteSubscription as deleteStoredSubscription,
@@ -69,10 +70,10 @@ function AppContent() {
     deleteAutopayTransaction: deleteAutopayFromContext,
     updateSubscription,
   } = useAppContext();
-  
+
   const { syncSms, handleNewTransaction, isSyncing } = useSmsSync();
   const { checkSmsPermission, requestSmsPermission } = usePermissions();
-  
+
   const [refreshing, setRefreshing] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   const [showWelcome, setShowWelcome] = useState(!hasCompletedWelcome());
@@ -86,12 +87,23 @@ function AppContent() {
   const [showRenewalAlert, setShowRenewalAlert] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
 
+  // Stable refs to prevent sync re-trigger loops
+  const subsRef = useRef(subscriptions);
+  const autopayRef = useRef(autopayTransactions);
+  const trackAutopayRef = useRef(settings.trackAutopay);
+
+  useEffect(() => {
+    subsRef.current = subscriptions;
+    autopayRef.current = autopayTransactions;
+    trackAutopayRef.current = settings.trackAutopay;
+  }, [subscriptions, autopayTransactions, settings.trackAutopay]);
+
   // Register callback for pro status changes
   useEffect(() => {
     setProStatusChangeCallback((newIsPro) => {
       console.log('[App] Pro status changed:', newIsPro);
       setIsPro(newIsPro);
-      
+
       if (newIsPro) {
         const allSubs = getSubscriptions();
         setSubscriptions(allSubs);
@@ -102,7 +114,7 @@ function AppContent() {
   // Monitor network connectivity
   useEffect(() => {
     console.log('[App] Setting up network monitoring');
-    
+
     const unsubscribe = NetInfo.addEventListener(state => {
       const connected = !!(state.isConnected && state.isInternetReachable !== false);
       console.log('[App] Network status:', connected ? 'online' : 'offline');
@@ -120,15 +132,47 @@ function AppContent() {
     };
   }, []);
 
+  const performSync = useCallback(async () => {
+    await syncSms(
+      subsRef.current,
+      autopayRef.current,
+      trackAutopayRef.current,
+      (newSubs, newAutopay, newCount) => {
+        setSubscriptions(newSubs);
+        setAutopayTransactions(newAutopay);
+
+        if (newCount > 0) {
+          const newSubNames = newSubs
+            .slice(-newCount)
+            .map(s => s.merchantName)
+            .join(', ');
+
+          Alert.alert(
+            '🎉 New Subscriptions Found!',
+            `Detected ${newCount} subscription(s): ${newSubNames}`,
+            [
+              {
+                text: 'OK',
+              },
+            ]
+          );
+        }
+      },
+      (passbookTxns) => {
+        setPassbookTransactions(passbookTxns);
+      }
+    );
+  }, [syncSms, setSubscriptions, setAutopayTransactions, setPassbookTransactions]);
+
   // Periodic SMS sync
   useEffect(() => {
     if (!hasSmsPermission || appState !== 'active') return;
 
     console.log('[App] Setting up periodic SMS sync');
-    
+
     // Sync immediately
     performSync();
-    
+
     // Then sync every 5 minutes
     const interval = setInterval(() => {
       console.log('[App] Periodic SMS sync triggered');
@@ -139,7 +183,7 @@ function AppContent() {
       console.log('[App] Clearing periodic SMS sync');
       clearInterval(interval);
     };
-  }, [hasSmsPermission, appState, subscriptions, autopayTransactions, settings.trackAutopay]);
+  }, [hasSmsPermission, appState, performSync]);
 
   // Initialize app
   useEffect(() => {
@@ -147,8 +191,6 @@ function AppContent() {
       initializeApp();
     }
   }, [showWelcome]);
-
-
 
   // Listen for incoming SMS
   useEffect(() => {
@@ -170,8 +212,8 @@ function AppContent() {
       if (parsed) {
         handleNewTransaction(
           parsed,
-          subscriptions,
-          autopayTransactions,
+          subsRef.current,
+          autopayRef.current,
           setSubscriptions,
           setAutopayTransactions,
           () => {
@@ -185,7 +227,7 @@ function AppContent() {
       console.log('[App] Removing SMS receiver listener');
       subscription.remove();
     };
-  }, [hasSmsPermission, subscriptions, autopayTransactions, handleNewTransaction, addPassbookTransaction]);
+  }, [hasSmsPermission, handleNewTransaction, addPassbookTransaction, setSubscriptions, setAutopayTransactions]);
 
   // Schedule payment alarms and notifications
   useEffect(() => {
@@ -197,7 +239,7 @@ function AppContent() {
         settings.alarmTimeBeforeDue || 8,
         settings.alarmTimeOnDueDate || 6
       );
-      
+
       // Also schedule notifee notifications for redundancy
       import('./src/utils/reliableNotifications').then(({ scheduleAllReliableReminders }) => {
         scheduleAllReliableReminders(subscriptions, autopayTransactions);
@@ -224,34 +266,71 @@ function AppContent() {
     }
   }, [settings.notificationsEnabled]);
 
+  const checkUpcomingPayments = useCallback(() => {
+    const tier = getSubscriptionTier();
+    const upcoming = getUpcomingPayments(subsRef.current, autopayRef.current);
+
+    // Filter to top 3 overall for free users
+    const todayAllowed = tier.isPro ? upcoming.today : upcoming.today.slice(0, 3);
+    const tomorrowAllowed = tier.isPro
+      ? upcoming.tomorrow
+      : upcoming.tomorrow.slice(0, Math.max(0, 3 - todayAllowed.length));
+
+    const renewals = getUpcomingRenewals(subsRef.current);
+    setUpcomingRenewals(renewals);
+
+    const hasUpcoming = todayAllowed.length > 0 || tomorrowAllowed.length > 0;
+
+    if (hasUpcoming) {
+      setShowRenewalAlert(true);
+
+      if (todayAllowed.length > 0) {
+        const names = todayAllowed.map(p => `${p.merchantName} (${p.type})`).join(', ');
+        Alert.alert(
+          'Payments Due Today!',
+          `${todayAllowed.length} payment(s) due today: ${names}`
+        );
+      } else if (tomorrowAllowed.length > 0) {
+        const names = tomorrowAllowed.map(p => `${p.merchantName} (${p.type})`).join(', ');
+        Alert.alert(
+          'Payments Due Tomorrow',
+          `${tomorrowAllowed.length} payment(s) due tomorrow: ${names}`
+        );
+      }
+    }
+  }, []);
+
   const initializeApp = async () => {
     try {
       const storedSubs = getSubscriptions();
       const tier = getSubscriptionTier();
-      
+
       let subsToLoad = storedSubs;
       if (!tier.isPro && storedSubs.length > tier.maxSubscriptions) {
         const manualSubs = storedSubs.filter(s => s.source === 'manual');
         const smsSubs = storedSubs.filter(s => s.source === 'sms')
           .sort((a, b) => (b.lastPaymentDate || 0) - (a.lastPaymentDate || 0));
-        
+
         subsToLoad = [...manualSubs, ...smsSubs].slice(0, tier.maxSubscriptions);
       }
-      
+
       setSubscriptions(subsToLoad);
 
       const storedAutopay = getAutopayTransactions();
       const enrichedAutopay = enrichAutopayWithCycles(storedAutopay);
       setAutopayTransactions(enrichedAutopay);
 
+      const storedPassbook = getPassbookTransactions();
+      setPassbookTransactions(storedPassbook);
+
       // Create notification channels and request permission
       await createNotificationChannels();
-      
+
       // Request notification permission if notifications are enabled
       if (settings.notificationsEnabled) {
         const { requestNotificationPermission } = await import('./src/utils/reliableNotifications');
         const hasNotificationPermission = await requestNotificationPermission();
-        
+
         if (!hasNotificationPermission) {
           console.warn('[App] Notification permission not granted');
         }
@@ -261,7 +340,7 @@ function AppContent() {
       await initializeRevenueCat();
       const isProUser = await checkSubscriptionStatus();
       setIsPro(isProUser);
-      
+
       if (!isProUser) {
         console.log('[App] Initializing AdMob...');
         await initializeAdMob();
@@ -286,70 +365,12 @@ function AppContent() {
     }
   };
 
-  const performSync = useCallback(async () => {
-    await syncSms(
-      subscriptions,
-      autopayTransactions,
-      settings.trackAutopay,
-      (newSubs, newAutopay, newCount) => {
-        setSubscriptions(newSubs);
-        setAutopayTransactions(newAutopay);
-        
-        if (newCount > 0) {
-          const newSubNames = newSubs
-            .slice(-newCount)
-            .map(s => s.merchantName)
-            .join(', ');
-          
-          Alert.alert(
-            '🎉 New Subscriptions Found!',
-            `Detected ${newCount} subscription(s): ${newSubNames}`,
-            [
-              {
-                text: 'OK',
-              },
-            ]
-          );
-        }
-      },
-      (passbookTxns) => {
-        setPassbookTransactions(passbookTxns);
-      }
-    );
-  }, [subscriptions, autopayTransactions, settings.trackAutopay, syncSms, setPassbookTransactions]);
-
-  const checkUpcomingPayments = useCallback(() => {
-    const renewals = getUpcomingRenewals(subscriptions);
-    setUpcomingRenewals(renewals);
-    
-    const upcoming = getUpcomingPayments(subscriptions, autopayTransactions);
-    const hasUpcoming = upcoming.today.length > 0 || upcoming.tomorrow.length > 0;
-    
-    if (hasUpcoming) {
-      setShowRenewalAlert(true);
-      
-      if (upcoming.today.length > 0) {
-        const names = upcoming.today.map(p => `${p.merchantName} (${p.type})`).join(', ');
-        Alert.alert(
-          'Payments Due Today!',
-          `${upcoming.today.length} payment(s) due today: ${names}`
-        );
-      } else if (upcoming.tomorrow.length > 0) {
-        const names = upcoming.tomorrow.map(p => `${p.merchantName} (${p.type})`).join(', ');
-        Alert.alert(
-          'Payments Due Tomorrow',
-          `${upcoming.tomorrow.length} payment(s) due tomorrow: ${names}`
-        );
-      }
-    }
-  }, [subscriptions, autopayTransactions]);
-
   // Listen for app state changes
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (appState.match(/inactive|background/) && nextAppState === 'active') {
         console.log('[App] App came to foreground');
-        
+
         // Re-verify SMS permission in case it was revoked in settings
         checkSmsPermission().then(hasPermission => {
           setHasSmsPermission(hasPermission);
@@ -359,7 +380,7 @@ function AppContent() {
             performSync();
           }
         });
-        
+
         checkUpcomingPayments();
         checkAndPromptAppUpdate();
       }
@@ -369,11 +390,11 @@ function AppContent() {
     return () => {
       subscription.remove();
     };
-  }, [appState, hasSmsPermission, subscriptions, autopayTransactions, checkSmsPermission, performSync, checkUpcomingPayments]);
+  }, [appState, checkSmsPermission, performSync, checkUpcomingPayments]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    
+
     if (hasSmsPermission) {
       try {
         const { forceFullResync } = require('./src/native/SmsModule');
@@ -389,8 +410,8 @@ function AppContent() {
         'Please grant SMS permission to detect subscriptions automatically.',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Grant Permission', 
+          {
+            text: 'Grant Permission',
             onPress: async () => {
               const granted = await requestSmsPermission();
               if (granted) {
@@ -411,13 +432,13 @@ function AppContent() {
       );
       return;
     }
-    
+
     setRefreshing(false);
   }, [hasSmsPermission, performSync, requestSmsPermission]);
 
   const handleAddSubscription = useCallback((sub: Subscription): boolean => {
     const tier = getSubscriptionTier();
-    
+
     if (!tier.isPro && subscriptions.length >= tier.maxSubscriptions) {
       Alert.alert(
         'Subscription Limit Reached',
@@ -431,17 +452,17 @@ function AppContent() {
     }
 
     addSubscriptionToContext(sub);
-    
+
     if (!isPro) {
       showInterstitialAd();
     }
-    
+
     return true;
   }, [subscriptions.length, isPro, addSubscriptionToContext]);
 
   const handleAddAutopay = useCallback((autopay: AutopayTransaction): boolean => {
     const tier = getSubscriptionTier();
-    
+
     // Check if autopay tracking is available
     if (!tier.hasAutopayTracking) {
       Alert.alert(
@@ -456,25 +477,25 @@ function AppContent() {
     }
 
     console.log(`[App] Adding autopay transaction: ${autopay.merchantName}`);
-    
+
     // Enrich the new autopay transaction with all existing ones to calculate nextPaymentDate
     const allAutopay = [...autopayTransactions, autopay];
     const enriched = enrichAutopayWithCycles(allAutopay);
-    
+
     // Find the enriched version of the new transaction
     const enrichedNew = enriched.find(t => t.id === autopay.id);
-    
+
     if (enrichedNew) {
       console.log(`[App] Enriched autopay: nextPaymentDate = ${enrichedNew.nextPaymentDate ? dayjs(enrichedNew.nextPaymentDate).format('YYYY-MM-DD') : 'none'}`);
       addAutopayToContext(enrichedNew);
     } else {
       addAutopayToContext(autopay);
     }
-    
+
     if (!isPro) {
       showInterstitialAd();
     }
-    
+
     return true;
   }, [isPro, addAutopayToContext, autopayTransactions]);
 
@@ -487,7 +508,7 @@ function AppContent() {
         onPress: () => {
           deleteSubscriptionFromContext(id);
           deleteStoredSubscription(id);
-          
+
           if (!isPro) {
             showInterstitialAd();
           }
@@ -505,7 +526,7 @@ function AppContent() {
         onPress: () => {
           deleteAutopayFromContext(id);
           deleteStoredAutopay(id);
-          
+
           if (!isPro) {
             showInterstitialAd();
           }
@@ -517,7 +538,7 @@ function AppContent() {
   const handleMarkSubscriptionPaid = useCallback((id: string) => {
     const sub = subscriptions.find(s => s.id === id);
     if (!sub) return;
-    
+
     // Use current nextRenewalDate if future (or Date.now() if past/missing)
     // so paying early (e.g. July 27 for a July 29 due date) advances to August 29, not August 27
     const baseDate = sub.nextRenewalDate && sub.nextRenewalDate > Date.now()
@@ -535,7 +556,7 @@ function AppContent() {
     // by removing any nextPaymentDate field if it exists
     const autopay = autopayTransactions.find(t => t.id === id);
     if (!autopay) return;
-    
+
     console.log(`[App] Marking autopay as paid: ${autopay.merchantName}`);
     // Autopay transactions don't have recurring dates, so we just acknowledge the payment
     // The transaction remains in history but is marked as handled
@@ -553,7 +574,7 @@ function AppContent() {
   const handleMarkAsPaid = useCallback(() => {
     const currentAlarm = activeAlarms[activeAlarmIndex];
     if (!currentAlarm) return;
-    
+
     markPaymentAsPaid(currentAlarm.paymentId);
     advanceAlarm();
   }, [activeAlarms, activeAlarmIndex, advanceAlarm]);
@@ -561,7 +582,7 @@ function AppContent() {
   const handleRemindTomorrow = useCallback(() => {
     const currentAlarm = activeAlarms[activeAlarmIndex];
     if (!currentAlarm) return;
-    
+
     dismissAlarm(currentAlarm.id);
     advanceAlarm();
   }, [activeAlarms, activeAlarmIndex, advanceAlarm]);
@@ -569,12 +590,12 @@ function AppContent() {
   const handleSnooze = useCallback(() => {
     const currentAlarm = activeAlarms[activeAlarmIndex];
     if (!currentAlarm) return;
-    
+
     if (hasBeenSnoozed(currentAlarm.id)) {
       Alert.alert('Already Snoozed', 'This alarm has already been snoozed once.');
       return;
     }
-    
+
     snoozeAlarm(currentAlarm.id);
     advanceAlarm();
   }, [activeAlarms, activeAlarmIndex, advanceAlarm]);
@@ -638,7 +659,7 @@ function AppContent() {
         visible={activeAlarms.length > 0}
         animationType="slide"
         transparent={false}
-        onRequestClose={() => {}}
+        onRequestClose={() => { }}
       >
         {activeAlarms.length > 0 && (
           <PaymentAlarmScreen

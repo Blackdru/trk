@@ -206,9 +206,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
     paddingHorizontal: spacing.lg + 2,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xxl,
+    paddingVertical: spacing.lg,
   },
   heroSection: {
     alignItems: 'center',
